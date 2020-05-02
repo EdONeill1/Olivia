@@ -7,30 +7,21 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import System.Environment
 
 
--- data BExpr = Bool Bool
---            | Not BExpr
---            | BBinary BBinOp BExpr BExpr
---            | RBinary RBinOp AExpr AExpr
---             deriving (Show)
+data BExpr = Bool Bool
+           | Not BExpr
+           | BBinary BBinOp BExpr BExpr
+           | RBinary RBinOp AExpr AExpr
+            deriving (Show)
 
 data BBinOp = And | Or deriving (Show)
 data RBinOp = Greater | Less deriving (Show)
 
-data HenryVal = String
-              | Integer Integer
-              | Bool Bool
-              | Not HenryVal
-              | List [HenryVal] 
-              | Neg HenryVal
-              | ABinary ABinOp HenryVal HenryVal
-              | BBinary BBinOp HenryVal HenryVal
-              | RBinary RBinOp HenryVal HenryVal
-              | Seq [HenryVal]
-              | Assign String HenryVal
-              | If HenryVal HenryVal HenryVal
-              | While HenryVal HenryVal
-              | Skip
-                deriving (Show)
+data AExpr = Var String
+           | Integer Integer
+           | List [AExpr]
+           | Neg AExpr
+           | ABinary ABinOp AExpr AExpr
+             deriving (Show)
 
 data ABinOp = Add
             | Subtract
@@ -38,7 +29,12 @@ data ABinOp = Add
             | Divide
               deriving (Show)
 
-
+data Stmt = Seq [Stmt]
+          | Assign String AExpr
+          | If BExpr Stmt Stmt
+          | While BExpr Stmt
+          | Skip
+            deriving (Show)
 
 languageDef =
   emptyDef { Token.commentStart    = "/*"
@@ -68,16 +64,31 @@ lexer = Token.makeTokenParser languageDef
 identifier = Token.identifier lexer
 reserved = Token.reserved lexer
 reservedOp = Token.reservedOp lexer
-parens = Token.parens lexer
+brackets = Token.brackets lexer
 integer = Token.integer lexer
 semi = Token.semi lexer
 whiteSpace = Token.whiteSpace lexer
 
+whileParser :: Parser Stmt
+whileParser = whiteSpace >> statement
 
-spaces :: Parser ()
-spaces = skipMany1 space
+statement :: Parser Stmt
+statement =   brackets statement
+          <|> sequenceOfStmt
 
-ifStmt :: Parser HenryVal
+sequenceOfStmt =
+  do list <- (sepBy1 statement' semi)
+     -- If there's only one statement return it without using Seq.
+     return $ if length list == 1 then head list else Seq list
+
+statement' :: Parser Stmt
+statement' =   ifStmt
+           <|> whileStmt
+           <|> skipStmt
+           <|> assignStmt
+
+
+ifStmt :: Parser Stmt
 ifStmt =
   do reserved "if"
      cond  <- bExpression
@@ -88,7 +99,7 @@ ifStmt =
      reserved "->"
      return $ If cond stmt1 stmt2
 
-whileStmt :: Parser HenryVal
+whileStmt :: Parser Stmt
 whileStmt =
   do reserved ";Do"
      cond <- bExpression
@@ -97,20 +108,20 @@ whileStmt =
      reserved "Od"
      return $ While cond stmt
 
-assignStmt :: Parser HenryVal
+assignStmt :: Parser Stmt
 assignStmt =
   do var  <- identifier
      reservedOp ":="
      expr <- aExpression
      return $ Assign var expr
 
-skipStmt :: Parser HenryVal
+skipStmt :: Parser Stmt
 skipStmt = reserved "skip" >> return Skip
 
-aExpression :: Parser HenryVal
+aExpression :: Parser AExpr
 aExpression = buildExpressionParser aOperators aTerm
 
-bExpression :: Parser HenryVal
+bExpression :: Parser BExpr
 bExpression = buildExpressionParser bOperators bTerm
 
 aOperators = [ [Prefix (reservedOp "-"   >> return (Neg             ))          ]
@@ -125,14 +136,11 @@ bOperators = [ [Prefix (reservedOp "not" >> return (Not             ))          
                 Infix  (reservedOp "or"  >> return (BBinary Or      )) AssocLeft]
              ]
 
---   <|> liftM Integer integer
-aTerm =  parens aExpression
-     <|> liftM String  identifier
+aTerm =  brackets aExpression
+     <|> liftM Var identifier
      <|> liftM Integer integer
 
-   
-
-bTerm =  parens bExpression
+bTerm =  brackets bExpression
      <|> (reserved "true"  >> return (Bool True ))
      <|> (reserved "false" >> return (Bool False))
      <|> rExpression
@@ -146,57 +154,41 @@ rExpression =
 relation =   (reservedOp ">" >> return Greater)
          <|> (reservedOp "<" >> return Less)
 
-
-parseFile :: String -> IO HenryVal
+parseFile :: String -> IO Stmt
 parseFile file =
   do program  <- readFile file
-     case parse henryParser "" program of
+     case parse whileParser "" program of
        Left e  -> print e >> fail "parse error"
        Right r -> return r
 
 
+-- data AExpr = Var String
+--            | Integer Integer
+--            | List [AExpr]
+--            | Neg AExpr
+--            | ABinary ABinOp AExpr AExpr
+--              deriving (Show)
 
-statement :: Parser HenryVal
-statement =   parens statement
-          <|> sequenceOfStmt
-
-sequenceOfStmt =
-  do list <- (sepBy1 statement' semi)
-     return $ if length list == 1 then head list else Seq list
-
-
-henryParser :: Parser HenryVal
-henryParser = whiteSpace >> statement
-
-
-statement' :: Parser HenryVal
-statement' =   ifStmt
-           <|> whileStmt
-           <|> skipStmt
-           <|> assignStmt
-
-
-readExpr :: String -> HenryVal
-readExpr input = case parse henryParser "Henry" input of
-    Left err -> String $ "No Match" ++ show err
-    Right val -> String $ val
-
---- Evalutation
-showVal :: HenryVal -> String
-showVal (String contents) = "\"" ++ contents ++ "\""
+showVal :: AExpr -> String
+showVal (Var contents) = "" ++ show contents ++ ""
 showVal (Integer contents) = show contents
-showVal (Bool True) = "#t"
-showVal (Bool False) = "#f"
+showVal (List contents) = "[" ++ unwordsList contents ++ "]"
 
-eval :: HenryVal -> HenryVal
-eval val@(String _) = val
+eval :: AExpr -> Stmt
+eval val@(Var _) = val
 eval val@(Integer _) = val
-eval val@(Bool _) = val
+eval (List [Var "quote", val]) = val
+
+
+unwordsList :: [Stmt] -> String
+unwordsList = unwords . map showVal
+
+
+readExpr :: String -> Stmt
+readExpr input = case parse whileParser "" input of
+    Left err -> Var $ "No Match" ++ show err
+    Right val -> val
 
 
 main :: IO ()
 main = getArgs >>= print . eval . readExpr . head
--- main :: IO ()
--- main = do 
---          (expr:_) <- getArgs
---          putStrLn (readExpr expr)
