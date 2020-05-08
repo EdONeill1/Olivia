@@ -1,5 +1,23 @@
+-- _______________
+
+-- HENRY PROGRAMS
+-- _______________
+-- k0, k1, ... , k.n := a,b, ... , z
+-- ;Do n != N ->
+--     k0, k1, ... , k.n := a,b, ... , z
+--  Od
+
+
+-- k0, k1, ... , k.n := a,b, ... , z
+-- ;Do n != N ->
+--     if P(x) -> f . x
+--     [] !P(x) -> !f . x
+--     fi
+--  Od
+
 import System.IO
 import Control.Monad
+import Control.Monad.Except
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
@@ -120,12 +138,20 @@ parseExpr :: Parser HenryVal
 parseExpr =   henryParser
           <|> parseAtom
           <|> parseNumber 
+          <|> arithmetic
           <|> parseString
           <|> do 
                 _ <- char '['
                 x <- try parseList
                 _ <- char ']'
                 return x
+
+arithmetic :: Parser HenryVal
+arithmetic = 
+   do x <- parseNumber
+      reservedOp "+"
+      y <- parseNumber
+      return $ ABinary Add x y
 
 ifStmt :: Parser HenryVal
 ifStmt =
@@ -221,27 +247,133 @@ showVal (Assign val v) = val ++ " := " ++ show v
 showVal (If cond stmt1 stmt2) = "if " ++ show cond ++ " then " ++ show stmt1 ++ "else " ++ show stmt2 
 showVal (While cond stmt) = ";Do" ++ show cond ++ "while" ++ show stmt ++ "Od"
 showVal (Skip) = "Skip"
-showVal (ABinary op x y) = show x ++ show op ++ show y 
-showVal (BBinary op x y) = show x ++ show op ++ show y 
-showVal (RBinary op x y) = show x ++ show op ++ show y 
+showVal (ABinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
+showVal (BBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
+showVal (RBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
 
 unwordsList :: [HenryVal] -> String
 unwordsList = unwords . map showVal
 
--- eval :: HenryVal -> HenryVal
--- eval val@(String _) = val
--- eval val@(Integer _) = val
--- eval val@(Bool _) = val
--- eval (List [Atom "quote", val]) = val
 
-readExpr :: String -> String
+
+evalBBinOp :: HenryVal -> BBinOp -> HenryVal -> HenryVal
+evalBBinOp (Bool a) And (Bool b) = Bool (a && b)
+evalBBinOp (Bool a) And (Not (Bool b)) = Bool (a && b)
+evalBBinOp (Not (Bool a)) And (Bool b) = Bool (a && b)
+evalBBinOp (Not (Bool a)) And (Not (Bool b)) = Bool (a && b)
+evalBBinOp (Bool a) Or (Bool b) = Bool (a || b)
+evalBBinOp (Bool a) Or (Not (Bool b)) = Bool (a || b)
+evalBBinOp (Not (Bool a)) Or (Bool b) = Bool (a || b)
+evalBBinOp (Not (Bool a)) Or (Not (Bool b)) = Bool (a || b)
+
+
+-- evalABinOp :: HenryVal -> ABinOp -> HenryVal -> HenryVal
+-- evalABinOp e1 op e2
+--   = let Integer v1 = eval e1
+--         Integer v2 = eval e2
+--     in Integer $ calc v1 op v2
+--   where
+--     calc a Add b = a + b
+--     calc a Multiply b = a * b
+--     calc a Divide b = a `div` b
+--     calc a Subtract b = a - b
+
+evalRBinOp :: HenryVal -> RBinOp -> HenryVal -> HenryVal
+evalRBinOp (Integer a) Greater (Integer b) = if a > b then (Bool True) else (Bool False)
+evalRBinOp (Integer a) Less (Integer b) = if a < b then (Bool True) else (Bool False)
+
+-- evalStmt :: String -> HenryVal -> HenryVal
+-- evalStmt (Assign var val) = var = val
+
+evalCond :: HenryVal -> Bool
+evalCond (Bool cond) = if cond == True then True else False
+--evalCond cond = if evalRBinOp ((String read (words cond) !! 0) :: Integer) ((read (words cond) !! 1)) ((read (words cond) !! 2) :: Integer) then True else False
+
+evalOp :: String -> ABinOp
+evalOp "+" = Add
+evalOp "*" = Multiply
+evalOp "/" = Divide
+evalOp "-" = Subtract
+
+-- evalAssignment :: String -> HenryVal -> HenryVal
+-- evalAssignment var val = var = val
+evalABinOp :: HenryVal -> ABinOp -> HenryVal -> HenryVal
+evalABinOp (Integer a) Add (Integer b) = Integer (a +b)
+evalABinOp (Integer a) Multiply (Integer b) = Integer (a * b)
+evalABinOp (Integer a) Divide (Integer b) = Integer (a `div` b)
+evalABinOp (Integer a) Subtract (Integer b) = Integer (a - b)                       
+
+eval :: HenryVal -> HenryVal
+eval val@(Atom _) = val
+eval val@(String _) = val
+eval val@(Integer _) = val
+eval val@(Bool _) = val
+eval val@(Neg _) = val
+eval val@(Not _) = val
+eval (List [Atom "quote", val]) = val
+eval val@(List _) = val
+eval val@(Seq _) = val
+eval (If cond a b) = if (evalCond cond) then (eval a) else (eval b) 
+eval (Assign var val) = val
+eval (ABinary op x y) = evalABinOp (eval x) op (eval y)
+eval (BBinary op x y) = evalBBinOp (eval x) op (eval y)
+eval (RBinary op x y) = evalRBinOp x op y
+
+readExpr :: String -> HenryVal
 readExpr input = case parse parseExpr "Henry" input of
-    Left err -> "No match: " ++ show err
-    Right val -> show val
+    Left err -> String $ "No match: " ++ show err
+    Right val -> val
 
 main :: IO ()
-main = do 
-         (expr:_) <- getArgs
-         putStrLn (readExpr expr)
+main = getArgs >>= print . eval . readExpr . head
 
+-- main :: IO ()
+-- main = do 
+--          (expr:_) <- getArgs
+--          putStrLn (readExpr expr)
 
+-- main :: IO ()
+-- main = do args <- getArgs
+--           case length args of
+--                0 -> runRepl
+--                1 -> evalAndPrint $ args !! 0
+--                otherwise -> putStrLn "Program takes only 0 or 1 argument"
+-- ----------------
+-- --    REPL    --
+-- ----------------
+-- data HenryError = NumArgs Integer [HenryVal]
+--                | TypeMismatch String HenryVal
+--                | Parser ParseError
+--                | BadSpecialForm String HenryVal
+--                | NotFunction String String
+--                | UnboundVar String String
+--                | Default String
+
+-- flushStr :: String -> IO ()
+-- flushStr str = putStr str >> hFlush stdout
+
+-- readPrompt :: String -> IO String
+-- readPrompt prompt = flushStr prompt >> getLine
+
+-- type ThrowsError = Either HenryError
+-- trapError action = catchError action (return . show)
+
+-- extractValue :: ThrowsError a -> HenryVal
+-- extractValue (Right val) = val
+
+-- evalString :: String -> IO String
+-- evalString expr = return $ extractValue $ trapError $ (liftM show $ readExpr expr >>= eval)
+
+-- evalAndPrint :: String -> IO ()
+-- evalAndPrint expr =  evalString expr >>= putStrLn
+
+-- until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
+-- until_ pred prompt action = do 
+--    result <- prompt
+--    if pred result 
+--       then return ()
+--       else action result >> until_ pred prompt action
+      
+
+-- runRepl :: IO ()
+-- runRepl = until_ (== "quit") (readPrompt "Henry>>> ") evalAndPrint
