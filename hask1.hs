@@ -44,12 +44,28 @@ parseABinOp = do
 --     return $ ABinary Add x y
 
 
+
 parseABinary :: Parser HenryVal
 parseABinary = do
-                _ <- char '<'
                 x <- parseNumber
-                _ <- char '>'
-                return $ ABinary Add x (Integer 5)
+                op <- oneOf "/*+-"
+                y <- parseNumber
+                if op == '*' 
+                    then 
+                        return $ ABinary Multiply x y 
+                else
+                    if op == '/' then
+                        return $ ABinary Divide x y 
+                    else 
+                        if op == '+' then
+                            return $ ABinary Add x y
+                        else 
+                            if op == '-' then 
+                                return $ ABinary Subtract x y
+                            else
+                                return $ String "Error"
+              
+
 
   
 
