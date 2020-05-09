@@ -38,12 +38,20 @@ data HenryVal = Atom String
               | If HenryVal HenryVal HenryVal
               | While HenryVal HenryVal
               | Skip
+              | ABinOp ABinOp
+              | RBinOp RBinOp
               | ABinary ABinOp HenryVal HenryVal
               | BBinary BBinOp HenryVal HenryVal
               | RBinary RBinOp HenryVal HenryVal
 
 data BBinOp = And | Or deriving (Show)
-data RBinOp = Greater | Less deriving (Show)
+
+data RBinOp = Greater
+            | GEqual
+            | Less
+            | LEqual
+             deriving (Show)
+
 data ABinOp = Add
             | Subtract
             | Multiply
@@ -107,7 +115,48 @@ parseAtom = do
               return $ case atom of 
                          "True" -> Bool True
                          "False" -> Bool False
+                         "Add" -> ABinOp Add
+                         "Subtract" -> ABinOp Subtract
+                         "Multiply" -> ABinOp Multiply
+                         "Divide" -> ABinOp Divide
+                         "Greater" -> RBinOp Greater
+                         "Less" -> RBinOp Less
+                         "GEqual" -> RBinOp GEqual
+                         "LEqual" -> RBinOp LEqual
                          _    -> Atom atom
+
+parseBinary :: Parser HenryVal
+parseBinary = do
+                x <- parseNumber
+                op <- oneOf "/*+-<>gl"
+                y <- parseNumber
+                if op == '*' 
+                    then 
+                        return $ ABinary Multiply x y 
+                else
+                    if op == '/' then
+                        return $ ABinary Divide x y 
+                    else 
+                        if op == '+' then
+                            return $ ABinary Add x y
+                        else 
+                            if op == '-' then 
+                                return $ ABinary Subtract x y
+                            else
+                                if op == '<' then
+                                    return $ RBinary Less x y
+                                else
+                                    if op == '>' then
+                                        return $ RBinary Greater x y
+                                    else
+                                        if op == 'l' then
+                                            return $ RBinary LEqual x y
+                                        else
+                                            if op == 'g' then
+                                                return $ RBinary GEqual x y
+                                            else
+                                                return $ String "Error"
+
 
 parseNumber :: Parser HenryVal
 parseNumber = liftM (Integer . read) $ many1 digit
@@ -138,20 +187,18 @@ parseExpr :: Parser HenryVal
 parseExpr =   henryParser
           <|> parseAtom
           <|> parseNumber 
-          <|> arithmetic
           <|> parseString
           <|> do 
                 _ <- char '['
                 x <- try parseList
                 _ <- char ']'
                 return x
+          <|> do 
+                _ <- char '<'
+                x <- try parseBinary
+                _ <- char '>'
+                return x
 
-arithmetic :: Parser HenryVal
-arithmetic = 
-   do x <- parseNumber
-      reservedOp "+"
-      y <- parseNumber
-      return $ ABinary Add x y
 
 ifStmt :: Parser HenryVal
 ifStmt =
@@ -250,6 +297,8 @@ showVal (Skip) = "Skip"
 showVal (ABinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
 showVal (BBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
 showVal (RBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
+showVal (ABinOp op) = show op
+showVal (RBinOp op) = show op
 
 unwordsList :: [HenryVal] -> String
 unwordsList = unwords . map showVal
@@ -279,8 +328,10 @@ evalBBinOp (Not (Bool a)) Or (Not (Bool b)) = Bool (a || b)
 --     calc a Subtract b = a - b
 
 evalRBinOp :: HenryVal -> RBinOp -> HenryVal -> HenryVal
-evalRBinOp (Integer a) Greater (Integer b) = if a > b then (Bool True) else (Bool False)
-evalRBinOp (Integer a) Less (Integer b) = if a < b then (Bool True) else (Bool False)
+evalRBinOp (Integer a) Greater (Integer b) = Bool (a > b)
+evalRBinOp (Integer a) Less (Integer b) = Bool (a < b)
+evalRBinOp (Integer a) GEqual (Integer b) = Bool (a >= b)
+evalRBinOp (Integer a) LEqual (Integer b) = Bool (a <= b)
 
 -- evalStmt :: String -> HenryVal -> HenryVal
 -- evalStmt (Assign var val) = var = val
@@ -298,7 +349,7 @@ evalOp "-" = Subtract
 -- evalAssignment :: String -> HenryVal -> HenryVal
 -- evalAssignment var val = var = val
 evalABinOp :: HenryVal -> ABinOp -> HenryVal -> HenryVal
-evalABinOp (Integer a) Add (Integer b) = Integer (a +b)
+evalABinOp (Integer a) Add (Integer b) = Integer (a + b)
 evalABinOp (Integer a) Multiply (Integer b) = Integer (a * b)
 evalABinOp (Integer a) Divide (Integer b) = Integer (a `div` b)
 evalABinOp (Integer a) Subtract (Integer b) = Integer (a - b)                       

@@ -15,12 +15,20 @@ data HenryVal = Integer Integer
               | String String 
               | List [HenryVal]
               | ABinOp ABinOp
+              | RBinOp RBinOp
               | ABinary ABinOp HenryVal HenryVal
+              | RBinary RBinOp HenryVal HenryVal
 
 data ABinOp = Add
             | Subtract
             | Multiply
             | Divide
+             deriving (Show)
+
+data RBinOp = Greater
+            | GEqual
+            | Less
+            | LEqual
              deriving (Show)
 
 spaces :: Parser ()
@@ -48,7 +56,7 @@ parseABinOp = do
 parseABinary :: Parser HenryVal
 parseABinary = do
                 x <- parseNumber
-                op <- oneOf "/*+-"
+                op <- oneOf "/*+-<>gl"
                 y <- parseNumber
                 if op == '*' 
                     then 
@@ -63,11 +71,20 @@ parseABinary = do
                             if op == '-' then 
                                 return $ ABinary Subtract x y
                             else
-                                return $ String "Error"
-              
+                                if op == '<' then
+                                    return $ RBinary Less x y
+                                else
+                                    if op == '>' then
+                                        return $ RBinary Greater x y
+                                    else
+                                        if op == 'l' then
+                                            return $ RBinary LEqual x y
+                                        else
+                                            if op == 'g' then
+                                                return $ RBinary GEqual x y
+                                            else
+                                                return $ String "Error"
 
-
-  
 
 parseString :: Parser HenryVal
 parseString = do
@@ -94,6 +111,10 @@ parseAtom = do
                          "Subtract" -> ABinOp Subtract
                          "Multiply" -> ABinOp Multiply
                          "Divide" -> ABinOp Divide
+                         "Greater" -> RBinOp Greater
+                         "Less" -> RBinOp Less
+                         "GEqual" -> RBinOp GEqual
+                         "LEqual" -> RBinOp LEqual
                          _ -> Atom atom
 
 --  parseABinOp <|>
@@ -103,7 +124,7 @@ parseExpr =  parseNumber <|>
              parseString <|>
              do
                  _ <- char '['
-                 x <- try parseList
+                 x <- try parseList <|> parseABinary
                  _ <- char ']'
                  return x
             <|>
@@ -125,17 +146,25 @@ showVal (String contents) = "\"" ++ contents ++ "\""
 showVal (Bool True) = "True"
 showVal (Bool False) = "False"
 showVal (ABinOp op) = show op
+showVal (RBinOp op) = show op
 showVal (ABinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
+showVal (RBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
 showVal (List contents) = "[" ++ unwordsList contents ++ "]"
 
 unwordsList :: [HenryVal] -> String
 unwordsList = unwords . map showVal
 
 evalABinOp :: HenryVal -> ABinOp -> HenryVal -> HenryVal
-evalABinOp (Integer a) Add (Integer b) = Integer (a +b)
+evalABinOp (Integer a) Add (Integer b) = Integer (a + b)
 evalABinOp (Integer a) Multiply (Integer b) = Integer (a * b)
 evalABinOp (Integer a) Divide (Integer b) = Integer (a `div` b)
 evalABinOp (Integer a) Subtract (Integer b) = Integer (a - b) 
+
+evalRBinOp :: HenryVal -> RBinOp -> HenryVal -> HenryVal
+evalRBinOp (Integer a) Greater (Integer b) = Bool (a > b)
+evalRBinOp (Integer a) Less (Integer b) = Bool (a < b)
+evalRBinOp (Integer a) GEqual (Integer b) = Bool (a >= b)
+evalRBinOp (Integer a) LEqual (Integer b) = Bool (a <= b)
 
 eval :: HenryVal -> HenryVal
 eval val@(Atom _) = val
@@ -146,6 +175,7 @@ eval val@(ABinOp _) = val
 eval (List [Atom "quote", val]) = val
 eval val@(List _) = val
 eval (ABinary op x y) = evalABinOp (eval x) op (eval y)
+eval (RBinary op x y) = evalRBinOp (eval x) op (eval y)
 
 main :: IO ()
 main = getArgs >>= print . eval . readExpr . head
