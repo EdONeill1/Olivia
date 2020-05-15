@@ -339,6 +339,13 @@ evalCond (String cond) = if  (henryBool2Bool (eval (str2rbinary cond))) then Tru
 --evalCond (String cond) = if (henryBool2Bool (evalRBinOp (int2HenryInt (str2Int ((words cond) !! 0))) (evalROp ((words cond) !! 1)) (int2HenryInt (str2Int ((words cond) !! 2))) )) == True then True else False
 --evalCond (List cond) = if (henryBool2Bool (evalRBinOp (cond !! 0) ((henryVal2Rop (cond !! 1))) (cond !! 2))) == True then True else False
 
+evalWhile :: HenryVal -> HenryVal -> HenryVal
+evalWhile cond stmt = if (henryBool2Bool cond) == False then (Bool False) else evalWhile cond (eval stmt)
+
+-- assign :: HenryVal -> HenryVal -> HenryVal
+-- assign x val = 
+               
+
 henryVal2Rop :: HenryVal -> RBinOp
 henryVal2Rop (RBinOp Less) = Less
 henryVal2Rop (RBinOp Greater) = Greater
@@ -383,7 +390,7 @@ eval val@(Seq _) = val
 -- eval (If cond a b) = if (evalCond cond) then (eval a) else (eval b)
 -- eval (If cond a b) = if (evalRBinOp (int2HenryInt (str2Int (cond!!0))) (evalROp (cond!!1)) (int2HenryInt (str2Int (cond!!2))) ) then (eval a) else (eval b)
 eval (If cond a b) = if (henryBool2Bool (eval cond)) then (eval a) else (eval b)
-eval (While cond a) = a
+eval (While cond a) = evalWhile cond a
 eval (Assign var val) = val
 eval val@(ABinOp _) = val
 eval val@(RBinOp _) = val
@@ -397,8 +404,70 @@ readExpr input = case parse parseExpr "Henry" input of
     Left err -> String $ "No match: " ++ show err
     Right val -> val
 
+-- main :: IO ()
+-- main = getArgs >>= print . eval . readExpr . head
+
+
+extractInt :: HenryVal -> Integer
+extractInt (Integer n) = n
+
+extractString :: HenryVal -> String
+extractString (String n) = n
+
+
+read' :: IO String
+read' = putStr "Henry > "
+     >> hFlush stdout
+     >> getLine
+
+eval' :: String -> String
+eval' input = show $ eval (readExpr input)
+
+print' :: String -> IO ()
+print' = putStrLn
+
+int2str :: Integer -> String
+int2str n = show n
+
 main :: IO ()
-main = getArgs >>= print . eval . readExpr . head
+main = do
+  input <- read'
+  
+  unless (input == ":quit")
+       $ print' (eval' input) >> main
+-- extractValue :: HenryVal
+-- extractValue (Integer n)
+-- extractValue :: a -> a
+-- extractValue (Right val) = val
+
+-- flushStr :: String -> IO ()
+-- flushStr str = putStr str >> hFlush stdout
+
+-- readPrompt :: String -> IO String
+-- readPrompt prompt = flushStr prompt >> getLine
+
+-- evalString :: String -> String
+-- evalString expr = return (liftM show $ readExpr expr >>= eval)
+
+-- evalAndPrint :: String -> IO ()
+-- evalAndPrint expr =  evalString expr >>= putStrLn
+
+-- until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
+-- until_ pred prompt action = do 
+--    result <- prompt
+--    if pred result 
+--       then return ()
+--       else action result >> until_ pred prompt action
+
+-- runRepl :: IO ()
+-- runRepl = until_ (== "quit") (readPrompt "Lisp>>> ") evalAndPrint
+
+-- main :: IO ()
+-- main = do args <- getArgs
+--           case length args of
+--                0 -> runRepl
+--                1 -> evalAndPrint $ args !! 0
+--                otherwise -> putStrLn "Program takes only 0 or 1 argument"
 -- <|>
 --                      if (evalRBinOp ((words cond) !! 0) ((words cond) !! 1) ((words cond) !! 2)) then (eval a) else (eval b)
 
