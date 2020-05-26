@@ -14,7 +14,7 @@
 --     [] !P(x) -> !f . x
 --     fi
 --  Od
-import System.Environment
+
 import System.IO
 import Data.IORef
 import Control.Monad
@@ -23,9 +23,8 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
-import Data.Char
+import System.Environment
 instance Show HenryVal where show = showVal
-type Env = IORef [(String, IORef HenryVal)] 
 
 --- Definition of data, language, and lexer
 data HenryVal = Atom String
@@ -40,7 +39,6 @@ data HenryVal = Atom String
               | If HenryVal HenryVal HenryVal
               | While HenryVal HenryVal
               | Skip
-              | Parser ParseError
               | ABinOp ABinOp
               | RBinOp RBinOp
               | ABinary ABinOp HenryVal HenryVal
@@ -237,13 +235,8 @@ whileStmt =
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved "->"
-     stmt <- statement <|>
-             do 
-                _ <- char '<'
-                x <- try parseBinary
-                _ <- char '>'
-                return x
+     reserved "while"
+     stmt <- statement
      reserved "Od"
      return $ While cond stmt
 
@@ -251,21 +244,8 @@ assignStmt :: Parser HenryVal
 assignStmt =
   do var  <- identifier
      reservedOp ":="
-     expr <- do 
-                _ <- char '<'
-                x <- try parseBinary
-                _ <- char '>'
-                return x
-            <|>
-                parseNumber
-            <|>
-                parseString
+     expr <- aExpression
      return $ Assign var expr
-
-
-
--- printStmt (ABinary )
-              
 
 skipStmt :: Parser HenryVal
 skipStmt = reserved "skip" >> return Skip
@@ -311,7 +291,6 @@ parseFile file =
        Left e  -> print e >> fail "parse error"
        Right r -> return r
 
-
 --- Beginning of evaluation
 showVal :: HenryVal -> String
 showVal (Atom contents) = show contents
@@ -323,16 +302,15 @@ showVal (Bool False) = "False"
 showVal (Not contents) = "Not " ++ show contents
 showVal (List contents) = "[" ++ unwordsList contents ++ "]"
 showVal (Seq contents) = unwordsList contents
-showVal (Assign var val) = var ++ " := " ++ show val
+showVal (Assign val v) = val ++ " := " ++ show v
 showVal (If cond stmt1 stmt2) = "if " ++ show cond ++ " then " ++ show stmt1 ++ "else " ++ show stmt2 
-showVal (While cond stmt) = ";Do " ++ show cond ++ " -> " ++ show stmt ++ " Od"
+showVal (While cond stmt) = ";Do" ++ show cond ++ "while" ++ show stmt ++ "Od"
 showVal (Skip) = "Skip"
 showVal (ABinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
 showVal (BBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
 showVal (RBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y 
 showVal (ABinOp op) = show op
 showVal (RBinOp op) = show op
-showVal (Parser parseErr) = "Parse error at " ++ show parseErr
 
 unwordsList :: [HenryVal] -> String
 unwordsList = unwords . map showVal
@@ -361,36 +339,11 @@ evalRBinOp (Integer a) LEqual (Integer b) = Bool (a <= b)
 --evalCond (List cond) = if (henryBool2Bool (evalRBinOp (cond !! 0) ((henryVal2Rop (cond !! 1))) (cond !! 2))) == True then True else False
 
 -- evalWhile :: HenryVal -> HenryVal -> HenryVal
--- evalWhile cond stmt = if (henryBool2Bool cond) == False then (Bool False) else eval stmt
-                                                            
-
--- while :: Bool -> HenryVal -> HenryVal
--- while bool expr 
---   | bool == False = eval expr
---   | otherwise = eval expr
-
-printStmt :: HenryVal -> String
-printStmt (Integer expr) = do 
-                             x <- show expr
-                             show expr
-                             return x
-
--- f :: Bool -> HenryVal -> HenryVal
--- f p n 
---   | p == False = (eval n)
---   | otherwise = do
---                   f' n
---                   f p n
-
-
-
--- f' :: HenryVal -> IO ()
--- f' n = print(n)
+-- evalWhile cond stmt = if (henryBool2Bool cond) == False then (Bool False) else evalWhile cond (eval stmt)
 
 -- assign :: HenryVal -> HenryVal -> HenryVal
--- assign x y = do
---                let x = y
---                return $ x
+-- assign x val = 
+               
 
 henryVal2Rop :: HenryVal -> RBinOp
 henryVal2Rop (RBinOp Less) = Less
@@ -398,9 +351,6 @@ henryVal2Rop (RBinOp Greater) = Greater
 
 str2Int :: String -> Integer
 str2Int str = read (str) :: Integer
-
-str2rbinary :: String -> HenryVal
-str2rbinary string = RBinary (evalROp ((words string) !! 1)) (int2HenryInt (str2Int ((words string) !! 0))) (int2HenryInt (str2Int ((words string) !! 2)))
 
 int2HenryInt :: Integer -> HenryVal
 int2HenryInt num = Integer num
@@ -410,6 +360,9 @@ henryBool2Bool (Bool True) = True
 henryBool2Bool (Bool False) = False
 henryBool2Bool (String "True") = True
 henryBool2Bool (String "False") = False
+
+str2rbinary :: String -> HenryVal
+str2rbinary string = RBinary (evalROp ((words string) !! 1)) (int2HenryInt (str2Int ((words string) !! 0))) (int2HenryInt (str2Int ((words string) !! 2)))
 
 evalROp :: String -> RBinOp
 evalROp "Less" = Less
@@ -422,30 +375,8 @@ evalABinOp (Integer a) Add (Integer b) = Integer (a + b)
 evalABinOp (Integer a) Multiply (Integer b) = Integer (a * b)
 evalABinOp (Integer a) Divide (Integer b) = Integer (a `div` b)
 evalABinOp (Integer a) Subtract (Integer b) = Integer (a - b)                       
-evalABinOp (String a) Add (String b) = Integer ((read (a) :: Integer) + (read (b) :: Integer))
--- eval :: HenryVal -> HenryVal
--- eval val@(Atom _) = val
--- eval val@(String _) = val
--- eval val@(Integer _) = val
--- eval val@(Bool _) = val
--- eval val@(Neg _) = val
--- eval val@(Not _) = val
--- eval (List [Atom "quote", val]) = val
--- eval val@(List _) = val
--- eval val@(Seq _) = val
--- eval (If cond a b) = if (henryBool2Bool (eval cond)) then (eval a) else (eval b)
--- eval (While cond a) = evalWhile cond a
--- eval (Assign var val) = do
---                           x <- (eval var)
---                           y <- (eval val)
---                           let x = y                        
--- eval val@(RBinOp _) = val
--- eval (Skip) = Skip
--- eval (ABinary op x y) = evalABinOp (eval x) op (eval y)
--- eval (BBinary op x y) = evalBBinOp (eval x) op (eval y)
--- eval (RBinary op x y) = evalRBinOp (eval x) op (eval y)
 
-eval :: Env -> HenryVal -> IOThrowsError HenryVal
+eval :: Env -> HenryVal -> ThrowsError HenryVal
 eval env val@(Atom _) = return val
 eval env val@(String _) = return val
 eval env val@(Integer _) = return val
@@ -453,56 +384,28 @@ eval env val@(Bool _) = return val
 eval env val@(Neg _) = return val
 eval env val@(Not _) = return val
 eval env (List [Atom "quote", val]) = return val
-eval env (Assign var val) = eval env val >>= defineVar env var
-eval env (List [Atom "set!", Atom var, form]) =
-     eval env form >>= setVar env var
-eval env (List [Atom "define", Atom var, form]) =
-     eval env form >>= defineVar env var
 eval env val@(List _) = return val
 eval env val@(Seq _) = return val
--- eval env (If cond a b) = if (henryBool2Bool (eval cond)) then (eval env a) else (eval env b)                      
+-- eval env (List [Atom "set!", Atom var, form]) = eval env form >>= setVar env var
+-- eval env (List [Atom "define", Atom var, form]) = eval env form >>= defineVar env var
+-- eval (If cond a b) = if (evalCond cond) then (eval a) else (eval b)
+-- eval (If cond a b) = if (evalRBinOp (int2HenryInt (str2Int (cond!!0))) (evalROp (cond!!1)) (int2HenryInt (str2Int (cond!!2))) ) then (eval a) else (eval b)
+-- eval (If cond a b) = if (henryBool2Bool (return (eval cond))) then ( return (eval a) ) else ( return (eval b) )
+-- eval env (Assign var val) = eval env val >>= setVar env var
 eval env val@(ABinOp _) = return val
 eval env val@(RBinOp _) = return val
-eval env (ABinary op x y) = return $ evalABinOp x op y
-eval env (BBinary op x y) = return $ evalBBinOp x op y
-eval env (RBinary op x y) = return $ evalRBinOp x op y
-eval env (List (Atom func : args)) = mapM (eval env) args >>= liftThrows . apply func
+eval env (ABinary op x y) = return ( evalABinOp x op y )
+eval env (BBinary op x y) = return ( evalBBinOp x op y )
+eval env (RBinary op x y) = return ( evalRBinOp x op y )
 
-apply :: String -> [HenryVal] -> ThrowsError HenryVal
-apply func args = maybe (throwError $ String "Unrecognized primitive function args" )
-                        ($ args)
-                        (lookup func primitives)
-primitives :: [(String, [HenryVal] -> ThrowsError HenryVal)]
-primitives = [("+", numericBinop (+)),
-              ("-", numericBinop (-)),
-              ("*", numericBinop (*)),
-              ("/", numericBinop div),
-              ("mod", numericBinop mod),
-              ("quotient", numericBinop quot),
-              ("remainder", numericBinop rem)]
-
-numericBinop :: (Integer -> Integer -> Integer) -> [HenryVal] -> ThrowsError HenryVal
-numericBinop op params        = mapM unpackNum params >>= return . Integer . foldl1 op
-
-unpackNum :: HenryVal -> ThrowsError Integer
-unpackNum (Integer n) = return n
-unpackNum (String n) = let parsed = reads n in 
-                           if null parsed 
-                             then throwError $ String n
-                             else return $ fst $ parsed !! 0
-unpackNum (List [n]) = unpackNum n
-
-
-readExpr :: String -> ThrowsError HenryVal
+readExpr :: String -> ThrowsError HenryVal 
 readExpr input = case parse parseExpr "Henry" input of
-    Left err -> throwError $ Parser err
-    Right val -> return val
+     Left err -> throwError $ Parser err
+     Right val -> return val
 
-str2HenryStr :: String -> HenryVal
-str2HenryStr s = String $ s
+-- main :: IO ()
+-- main = getArgs >>= print . eval . readExpr . head
 
-henryStr2Str :: HenryVal -> String
-henryStr2Str s = show s
 
 extractInt :: HenryVal -> Integer
 extractInt (Integer n) = n
@@ -510,35 +413,27 @@ extractInt (Integer n) = n
 extractString :: HenryVal -> String
 extractString (String n) = n
 
-------------------------------
-          -- REPL --
-------------------------------
 
-evalAndPrint :: Env -> String -> IO ()
-evalAndPrint env expr =  evalString env expr >>= putStrLn
+-- read' :: IO String
+-- read' = putStr "Henry > "
+--      >> hFlush stdout
+--      >> getLine
 
-evalString :: Env -> String -> IO String
-evalString env expr = runIOThrows $ liftM show $ (liftThrows $ readExpr expr) >>= eval env
+-- eval' :: String -> String
+-- eval' input = show $ eval (readExpr input)
 
-runOne :: String -> IO ()
-runOne expr = nullEnv >>= flip evalAndPrint expr
+-- print' :: String -> IO ()
+-- print' = putStrLn
 
-runRepl :: IO ()
-runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Henry > ") . evalAndPrint
+-- int2str :: Integer -> String
+-- int2str n = show n
 
-readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> getLine
-
-flushStr :: String -> IO ()
-flushStr str = putStr str >> hFlush stdout
-
-until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
-until_ pred prompt action = do 
-   result <- prompt
-   if pred result 
-      then return ()
-      else action result >> until_ pred prompt action
-
+-- main :: IO ()
+-- main = do
+--   input <- read'
+  
+--   unless (input == ":quit")
+--        $ print' (eval' input) >> main
 main :: IO ()
 main = do args <- getArgs
           case length args of
@@ -547,26 +442,66 @@ main = do args <- getArgs
                otherwise -> putStrLn "Program takes only 0 or 1 argument"
 
 
-------------------------------------------------------------
-                -- Variable Assignment --
-------------------------------------------------------------
+--------------------------------------------------
+                -- Error Handling --
+--------------------------------------------------
 
--- Left to do:
---     * Figure out assignment 
---     * Figure out while statements
---     * Figure out arithmetic in regards to variables op integer rather than just integers
---     * Loading .hy files into the console
+data HenryError = NumArgs Integer [HenryVal]
+               | TypeMismatch String HenryVal
+               | Parser ParseError
+               | BadSpecialForm String HenryVal
+               | NotFunction String String
+               | UnboundVar String String
+               | Default String
 
--- str2Int :: HenryVal -> Integer
--- str2Int n = toInteger $ (ord (show n !! 1)) - 48
+showError :: HenryError -> String
+showError (UnboundVar message varname)  = message ++ ": " ++ varname
+showError (BadSpecialForm message form) = message ++ ": " ++ show form
+showError (NotFunction message func)    = message ++ ": " ++ show func
+showError (NumArgs expected found)      = "Expected " ++ show expected 
+                                       ++ " args; found values " ++ unwordsList found
+showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected
+                                       ++ ", found " ++ show found
+showError (Parser parseErr)             = "Parse error at " ++ show parseErr
+
+instance Show HenryError where show = showError
+
+type ThrowsError = Either HenryError
+
+trapError action = catchError action (return . show)
+
+extractValue :: ThrowsError a -> a
+extractValue (Right val) = val
+
+--------------------------------------------------
+                    -- REPL --
+--------------------------------------------------
+
+flushStr :: String -> IO ()
+flushStr str = putStr str >> hFlush stdout
+
+readPrompt :: String -> IO String
+readPrompt prompt = flushStr prompt >> getLine
+
+until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
+until_ pred prompt action = do 
+   result <- prompt
+   if pred result 
+      then return ()
+      else action result >> until_ pred prompt action
+
+
+
+--------------------------------------------------
+            -- Variable Assignment --
+--------------------------------------------------
+
+type Env = IORef [(String, IORef HenryVal)]
 
 nullEnv :: IO Env
 nullEnv = newIORef []
 
-type ThrowsError = Either HenryVal 
-type IOThrowsError = ExceptT HenryVal IO
-
-trapError action = catchError action (return . show)
+type IOThrowsError = ExceptT HenryError IO
 
 liftThrows :: ThrowsError a -> IOThrowsError a
 liftThrows (Left err) = throwError err
@@ -575,21 +510,18 @@ liftThrows (Right val) = return val
 runIOThrows :: IOThrowsError String -> IO String
 runIOThrows action = runExceptT (trapError action) >>= return . extractValue
 
-extractValue :: ThrowsError a -> a
-extractValue (Right val) = val
-
 isBound :: Env -> String -> IO Bool
 isBound envRef var = readIORef envRef >>= return . maybe False (const True) . lookup var
 
 getVar :: Env -> String -> IOThrowsError HenryVal
 getVar envRef var  =  do env <- liftIO $ readIORef envRef
-                         maybe (throwError $ String "Getting an unbound variable")
+                         maybe (throwError $ UnboundVar "Getting an unbound variable" var)
                                (liftIO . readIORef)
                                (lookup var env)
 
 setVar :: Env -> String -> HenryVal -> IOThrowsError HenryVal
 setVar envRef var value = do env <- liftIO $ readIORef envRef
-                             maybe (throwError $ String "Setting an unbound variable")
+                             maybe (throwError $ UnboundVar "Setting an unbound variable" var)
                                    (liftIO . (flip writeIORef value))
                                    (lookup var env)
                              return value
@@ -610,3 +542,15 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
      where extendEnv bindings env = liftM (++ env) (mapM addBinding bindings)
            addBinding (var, value) = do ref <- newIORef value
                                         return (var, ref)
+
+evalAndPrint :: Env -> String -> IO ()
+evalAndPrint env expr =  evalString env expr >>= putStrLn
+
+evalString :: Env -> String -> IO String
+evalString env expr = runIOThrows $ liftM show $ (liftThrows $ readExpr expr) >>= eval env
+
+runOne :: String -> IO ()
+runOne expr = nullEnv >>= flip evalAndPrint expr
+
+runRepl :: IO ()
+runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
