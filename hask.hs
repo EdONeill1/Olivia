@@ -356,7 +356,7 @@ evalRBinOp (Integer a) LEqual (Integer b) = Bool (a <= b)
 -- evalCond :: HenryVal -> Bool
 -- evalCond (Bool cond) = if cond then True else False
 -- evalCond (String cond) = if  (henryBool2Bool (eval (str2rbinary cond))) then True else False
---evalCond (RBinary cond) = if (evalRBinOp (RBinary cond)) then True else False
+-- evalCond (RBinary cond) = if (evalRBinOp (RBinary cond)) then True else False
 --evalCond (String cond) = if (henryBool2Bool (evalRBinOp (int2HenryInt (str2Int ((words cond) !! 0))) (evalROp ((words cond) !! 1)) (int2HenryInt (str2Int ((words cond) !! 2))) )) == True then True else False
 --evalCond (List cond) = if (henryBool2Bool (evalRBinOp (cond !! 0) ((henryVal2Rop (cond !! 1))) (cond !! 2))) == True then True else False
 

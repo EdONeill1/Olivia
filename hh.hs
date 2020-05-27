@@ -367,8 +367,16 @@ evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinO
 -- evalWhile :: HenryVal -> HenryVal -> HenryVal
 -- evalWhile cond stmt = if (henryBool2Bool cond) == False then (Bool False) else eval stmt
 
-evalCond :: Env -> HenryVal -> HenryVal
-evalCond env (Bool cond) = if cond then Bool True else Bool False   
+-- evalCond :: HenryVal -> Bool
+-- evalCond (Bool cond) = if cond then return $ (Bool True) else return $ (Bool False)
+-- evalCond env (String cond) = if (return $ eval env cond) then return $ (Bool True) else return $ (Bool False)
+
+-- evalCond :: Env -> HenryVal -> HenryVal
+-- evalCond env (Bool cond) = if cond then Bool True else Bool False   
+-- evalCond env (String cond) = if (henryBool2Bool (return $ eval env (str2rbinary cond))) then Bool True else Bool False 
+
+
+
 
 henryVal2Rop :: HenryVal -> RBinOp
 henryVal2Rop (RBinOp Less) = Less
@@ -377,8 +385,8 @@ henryVal2Rop (RBinOp Greater) = Greater
 str2Int :: String -> Integer
 str2Int str = read (str) :: Integer
 
-str2rbinary :: String -> HenryVal
-str2rbinary string = RBinary (evalROp ((words string) !! 1)) (int2HenryInt (str2Int ((words string) !! 0))) (int2HenryInt (str2Int ((words string) !! 2)))
+-- str2rbinary :: String -> HenryVal
+-- str2rbinary string = RBinary (evalROp ((words string) !! 1)) (int2HenryInt (str2Int ((words string) !! 0))) (int2HenryInt (str2Int ((words string) !! 2)))
 
 int2HenryInt :: Integer -> HenryVal
 int2HenryInt num = Integer num
@@ -389,11 +397,11 @@ henryBool2Bool (Bool False) = False
 henryBool2Bool (String "True") = True
 henryBool2Bool (String "False") = False
 
-evalROp :: String -> RBinOp
-evalROp "Less" = Less
-evalROp "Greater" = Greater
-evalROp "GEqual" = GEqual
-evalROp "LEqual" = LEqual
+evalROp :: Env -> String -> IOThrowsError HenryVal
+evalROp env "Less" = return $ RBinOp Less
+evalROp env "Greater" = return $ RBinOp Greater
+evalROp env "GEqual" = return $ RBinOp GEqual
+evalROp env "LEqual" = return $ RBinOp LEqual
 
 eval :: Env -> HenryVal -> IOThrowsError HenryVal
 eval env val@(Atom _) = return val
@@ -410,8 +418,7 @@ eval env (Seq [Atom "define", Atom var, form]) =
      eval env form >>= defineVar env var
 eval env val@(List _) = return val
 eval env val@(Seq _) = return val
--- eval env (If cond a b) = if (henryBool2Bool (eval cond)) then (eval env a) else (eval env b)    
-eval env (If cond x y) = if (henryBool2Bool (evalCond env cond)) then (eval env x) else (eval env y)                 
+eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool c) then (eval env x) else (eval env y))              
 eval env val@(ABinOp _) = return val
 eval env val@(RBinOp _) = return val
 eval env (ABinary op x y) = evalABinOp env x op y
