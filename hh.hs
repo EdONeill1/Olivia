@@ -214,7 +214,7 @@ ifStmt =
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved "then"
+     reserved " then"
      stmt1 <- statement
      reserved " else"
      stmt2 <- statement
@@ -222,7 +222,7 @@ ifStmt =
   <|>
   do reserved "if"
      cond  <- rExpression
-     reserved "then"
+     reserved " then"
      stmt1 <- statement
      reserved " else"
      stmt2 <- statement
@@ -245,7 +245,7 @@ whileStmt =
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved "Od"
+     reserved " Od"
      return $ While cond stmt
 
 assignStmt :: Parser HenryVal
@@ -376,8 +376,6 @@ evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinO
 -- evalCond env (String cond) = if (henryBool2Bool (return $ eval env (str2rbinary cond))) then Bool True else Bool False 
 
 
-
-
 henryVal2Rop :: HenryVal -> RBinOp
 henryVal2Rop (RBinOp Less) = Less
 henryVal2Rop (RBinOp Greater) = Greater
@@ -396,6 +394,30 @@ henryBool2Bool (Bool True) = True
 henryBool2Bool (Bool False) = False
 henryBool2Bool (String "True") = True
 henryBool2Bool (String "False") = False
+
+
+evalWhile :: Env -> HenryVal -> HenryVal -> IOThrowsError HenryVal
+evalWhile env cond stmt = eval env stmt >>= (\c -> do
+                                                     s <- eval env cond
+                                                     if (henryBool2Bool s) == False
+                                                         then return $ c
+                                                            else eval env (While cond stmt))
+
+
+
+-- evalWhile :: Env -> HenryVal -> HenryVal -> IOThrowsError HenryVal
+-- evalWhile env cond stmt = do
+--                             x <- eval env cond
+--                             whileM (henryBool2Bool x) (eval env stmt)
+-- exec (While e s)    = do v <- eval e
+--                          when (v /= 0) (exec (Seq [s, While e s]))
+                      
+-- hello_worlds :: Int -> Bool -> IO ()
+-- hello_worlds n bool 
+--   | bool == False = replicateM_ 1 $ putStrLn "Hello World"
+--   | otherwise = do
+--                     putStrLn "Hello"
+--                     hello_worlds n False
 
 evalROp :: Env -> String -> IOThrowsError HenryVal
 evalROp env "Less" = return $ RBinOp Less
@@ -418,7 +440,12 @@ eval env (Seq [Atom "define", Atom var, form]) =
      eval env form >>= defineVar env var
 eval env val@(List _) = return val
 eval env val@(Seq _) = return val
-eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool c) then (eval env x) else (eval env y))              
+eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool c) then (eval env x) else (eval env y))  
+--eval env (While cond stmt) = eval env cond >>= (\c -> if (henryBool2Bool c) == False then (eval env stmt) else eval env (While cond stmt)        )
+eval env (While cond stmt) = evalWhile env cond stmt
+-- -- eval env (While cond stmt) = eval env cond >>= (\c -> if (henryBool2Bool c) == False then (eval env stmt) else do 
+-- --                                                                                                                  x <- eval env stmt
+-- --                                                                                                                  eval env $ While c x)                                                                                                    
 eval env val@(ABinOp _) = return val
 eval env val@(RBinOp _) = return val
 eval env (ABinary op x y) = evalABinOp env x op y
@@ -427,11 +454,11 @@ eval env (RBinary op x y) = evalRBinOp env x op y
 
 
 
+
 readExpr :: String -> ThrowsError HenryVal
 readExpr input = case parse parseExpr "Henry" input of
     Left err -> throwError $ Parser err
     Right val -> return val
-
 
 
 str2HenryStr :: String -> HenryVal
