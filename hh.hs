@@ -349,7 +349,7 @@ evalABinOp env (Integer a) Multiply (Integer b)   = return $ Integer $ a * b
 evalABinOp env (Integer a) Divide (Integer b)   = return $ Integer $ a `div` b
 evalABinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalABinOp env c op b)
 evalABinOp env a@(Integer _)    op  (Atom b) = getVar env b >>= (\c -> evalABinOp env a op c)
-evalABinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> evalABinOp env c op c)
+evalABinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalABinOp env c op d))
 
 evalBBinOp :: Env -> HenryVal -> BBinOp -> HenryVal -> IOThrowsError HenryVal
 evalBBinOp env (Bool a) And (Bool b) = return $ Bool (a && b)
@@ -360,6 +360,9 @@ evalBBinOp env (Bool a) Or (Bool b) = return $ Bool (a || b)
 evalBBinOp env (Bool a) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Bool b) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Not (Bool b)) = return $ Bool (a || b)
+evalBBinOp env (Atom a)    op  b@(Bool _) = getVar env a >>= (\c -> evalBBinOp env c op b)
+evalBBinOp env a@(Bool _)    op  (Atom b) = getVar env b >>= (\c -> evalBBinOp env a op c)
+evalBBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalBBinOp env c op d))
 
 evalRBinOp :: Env -> HenryVal -> RBinOp -> HenryVal -> IOThrowsError HenryVal
 evalRBinOp env (Integer a) Greater (Integer b) = return $ Bool (a > b)
@@ -367,6 +370,9 @@ evalRBinOp env (Integer a) Less (Integer b) = return $ Bool (a < b)
 evalRBinOp env (Integer a) GEqual (Integer b) = return $ Bool (a >= b)
 evalRBinOp env (Integer a) LEqual (Integer b) = return $ Bool (a <= b)
 evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
+evalRBinOp env a@(Integer _) op  (Atom b) = getVar env b >>= (\c -> evalRBinOp env a op c)
+evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
+evalRBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalRBinOp env c op d))
 
 -- evalCond :: HenryVal -> Bool
 -- evalCond (Bool cond) = if cond then True else False
