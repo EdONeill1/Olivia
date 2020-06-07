@@ -60,6 +60,7 @@ data ABinOp = Add
             | Subtract
             | Multiply
             | Divide
+            | Modulo
               deriving (Show, Read)
 
 languageDef =
@@ -123,6 +124,7 @@ parseAtom = do
                          "Subtract" -> ABinOp Subtract
                          "Multiply" -> ABinOp Multiply
                          "Divide" -> ABinOp Divide
+                         "Modulo" -> ABinOp Modulo
                          "Greater" -> RBinOp Greater
                          "Less" -> RBinOp Less
                          "GEqual" -> RBinOp GEqual
@@ -132,8 +134,8 @@ parseAtom = do
 parseBinary :: Parser HenryVal
 parseBinary = do
                 x <- parseNumber <|> parseString <|> parseAtom
-                op <- oneOf "/*+-<>gl"
-                y <- parseNumber
+                op <- oneOf "/*+-<>gl" 
+                y <- parseNumber <|> parseString <|> parseAtom
                 if op == '*' 
                     then 
                         return $ ABinary Multiply x y 
@@ -339,6 +341,10 @@ evalABinOp env (Integer a) Subtract (Integer b)   = return $ Integer $ a - b
 evalABinOp env (Integer a) Multiply (Integer b)   = return $ Integer $ a * b
 evalABinOp env (Integer a) Divide (Integer b)   = return $ Integer $ a `div` b
 evalABinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalABinOp env c op b)
+evalABinOp env a@(Integer _)    op  (Atom b) = getVar env b >>= (\c -> evalABinOp env a op c)
+evalABinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> evalABinOp env c op c)
+
+
 
 evalBBinOp :: Env -> HenryVal -> BBinOp -> HenryVal -> IOThrowsError HenryVal
 evalBBinOp env (Bool a) And (Bool b) = return $ Bool (a && b)
