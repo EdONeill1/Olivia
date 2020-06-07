@@ -82,6 +82,8 @@ languageDef =
                                      , "and"
                                      , "or"
                                      , "->"
+                                     , "["
+                                     , "]"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/", ":="
                                       , "<", ">", "and", "or", "not"
@@ -134,7 +136,7 @@ parseAtom = do
 parseBinary :: Parser HenryVal
 parseBinary = do
                 x <- parseNumber <|> parseString <|> parseAtom
-                op <- oneOf "/*+-<>gl" 
+                op <- oneOf "/*+-<>gl^|" 
                 y <- parseNumber <|> parseString <|> parseAtom
                 if op == '*' 
                     then 
@@ -161,7 +163,13 @@ parseBinary = do
                                             if op == 'g' then
                                                 return $ RBinary GEqual x y
                                             else
-                                                return $ String "Error"
+                                                if op == '^' then
+                                                    return $ BBinary And x y
+                                                else
+                                                    if op == '|' then
+                                                        return $ BBinary Or x y
+                                                    else
+                                                        return $ String "Error"
 
 
 parseNumber :: Parser HenryVal
@@ -216,17 +224,17 @@ ifStmt =
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved " then"
+     reserved " []"
      stmt1 <- statement
-     reserved " else"
+     reserved " []"
      stmt2 <- statement
      return $ If cond stmt1 stmt2
   <|>
   do reserved "if"
      cond  <- rExpression
-     reserved " then"
+     reserved " []"
      stmt1 <- statement
-     reserved " else"
+     reserved " []"
      stmt2 <- statement
      return $ If cond stmt1 stmt2
 
@@ -331,7 +339,6 @@ showVal (RBinary op x y) = show x ++ " " ++ show op ++ " " ++ show y
 showVal (ABinOp op) = show op
 showVal (RBinOp op) = show op
 
-
 unwordsList :: [HenryVal] -> String
 unwordsList = unwords . map showVal
 
@@ -343,8 +350,6 @@ evalABinOp env (Integer a) Divide (Integer b)   = return $ Integer $ a `div` b
 evalABinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalABinOp env c op b)
 evalABinOp env a@(Integer _)    op  (Atom b) = getVar env b >>= (\c -> evalABinOp env a op c)
 evalABinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> evalABinOp env c op c)
-
-
 
 evalBBinOp :: Env -> HenryVal -> BBinOp -> HenryVal -> IOThrowsError HenryVal
 evalBBinOp env (Bool a) And (Bool b) = return $ Bool (a && b)
