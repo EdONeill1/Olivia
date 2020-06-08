@@ -28,7 +28,10 @@ import Data.Char
 instance Show HenryVal where show = showVal
 type Env = IORef [(String, IORef HenryVal)] 
 
---- Definition of data, language, and lexer
+--------------------------------------------------------------------------------
+                      -- Data and Grammar Definitions --
+--------------------------------------------------------------------------------
+
 data HenryVal = Atom String
               | String String 
               | Integer Integer
@@ -98,9 +101,14 @@ integer = Token.integer lexer
 semi = Token.semi lexer
 whiteSpace = Token.whiteSpace lexer
 
-----------
 
---- Definition of Parsers
+
+
+
+
+--------------------------------------------------
+                 -- Parsing  --
+--------------------------------------------------
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
 
@@ -318,7 +326,15 @@ parseFile file =
        Right r -> return r
 
 
---- Beginning of evaluation
+
+
+
+
+
+--------------------------------------------------
+                -- Evaluation --
+--------------------------------------------------
+
 showVal :: HenryVal -> String
 showVal (Atom contents) = show contents
 showVal (String contents) = "\"" ++ contents ++ "\""
@@ -417,9 +433,14 @@ readExpr input = case parse parseExpr "Henry" input of
     Left err -> throwError $ Parser err
     Right val -> return val
 
-------------------------------
-          -- REPL --
-------------------------------
+
+
+
+
+
+-------------------------------------
+          -- REPL AND MAIN --
+-------------------------------------
 
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr =  evalString env expr >>= putStrLn
@@ -452,6 +473,11 @@ main = do args <- getArgs
                0 -> runRepl
                1 -> runOne $ args !! 0
                otherwise -> putStrLn "Program takes only 0 or 1 argument"
+
+
+
+
+
 
 
 ------------------------------------------------------------
@@ -500,6 +526,11 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
      where extendEnv bindings env = liftM (++ env) (mapM addBinding bindings)
            addBinding (var, value) = do ref <- newIORef value
                                         return (var, ref)
+
+
+
+
+
 
 --------------------------------------------------
                 -- Error Handling --
