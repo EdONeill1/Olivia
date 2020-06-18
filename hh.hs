@@ -54,7 +54,7 @@ data HenryVal = Atom String
               | RBinary RBinOp HenryVal HenryVal
                deriving (Read)
 
-data BBinOp = And | Or deriving (Show, Read)
+data BBinOp = Is | And | Or deriving (Show, Read)
 
 data RBinOp = Greater
             | GEqual
@@ -95,7 +95,7 @@ languageDef =
                                      , "cons"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/", "%", ":="
-                                      , "<", ">", "and", "or", "not"
+                                      , "<", ">", "and", "or", "not", "is"
                                      ]
            }
 lexer = Token.makeTokenParser languageDef
@@ -150,7 +150,7 @@ parseAtom = do
 parseBinary :: Parser HenryVal
 parseBinary = do
                 x <- parseNumber <|> parseString <|> parseAtom
-                op <- oneOf "/*+%-<>gl^|" 
+                op <- oneOf "/*+%-<>gl^|=" 
                 y <- parseNumber <|> parseString <|> parseAtom
                 if op == '*' then 
                         return $ ABinary Multiply x y 
@@ -185,7 +185,10 @@ parseBinary = do
                                                         if op == '|' then
                                                             return $ BBinary Or x y
                                                         else
-                                                            return $ String "Error"
+                                                            if op == '=' then
+                                                                return $ BBinary Is x y
+                                                            else
+                                                                return $ String "Error"
 
 
 parseNumber :: Parser HenryVal
@@ -425,6 +428,7 @@ evalBBinOp env (Bool a) Or (Bool b) = return $ Bool (a || b)
 evalBBinOp env (Bool a) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Bool b) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Not (Bool b)) = return $ Bool (a || b)
+evalBBinOp env (Integer a) Is (Integer b) = return $ Bool (a == b)
 evalBBinOp env (Atom a)    op  b@(Bool _) = getVar env a >>= (\c -> evalBBinOp env c op b)
 evalBBinOp env a@(Bool _)    op  (Atom b) = getVar env b >>= (\c -> evalBBinOp env a op c)
 evalBBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalBBinOp env c op d))
