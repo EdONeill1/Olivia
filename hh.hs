@@ -16,7 +16,7 @@
 --  Od
 import System.Environment
 import System.IO
-import Prelude
+import Prelude hiding (tail)
 import Data.IORef
 import Control.Monad
 import Control.Monad.Except
@@ -43,6 +43,9 @@ data HenryVal = Atom String
               | Assign String HenryVal
               | If HenryVal HenryVal HenryVal
               | While HenryVal HenryVal
+              | Top [HenryVal]
+              | Tail [HenryVal]
+              | Cons [HenryVal]
               | Skip
               | ABinOp ABinOp
               | RBinOp RBinOp
@@ -87,6 +90,9 @@ languageDef =
                                      , "->"
                                      , "["
                                      , "]"
+                                     , "top"
+                                     , "tail"
+                                     , "cons"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/", ":="
                                       , "<", ">", "and", "or", "not"
@@ -204,8 +210,8 @@ statement' =   ifStmt
            <|> whileStmt
            <|> skipStmt
            <|> assignStmt
-  
-
+           <|> listStmt
+           
 parseExpr :: Parser HenryVal   
 parseExpr =   henryParser
           <|> parseAtom
@@ -222,7 +228,31 @@ parseExpr =   henryParser
                 _ <- char '>'
                 return x
 
+listStmt :: Parser HenryVal
+listStmt = 
+    do reserved "top"
+       _ <- char '['
+       x <- try parseList
+       _ <- char ']'
+       return $ Top [x]
+    <|>
+    do reserved "tail"
+       _ <- char '['
+       x <- try parseList
+       _ <- char ']'
+       return $ Tail [x]
+    <|>
+    do reserved "cons"
+       _ <- char '['
+       x <- try parseList
+       _ <- char ']'
+       _ <- char ' '
+       _ <- char '['
+       y <- try parseList
+       _ <- char ']'
+       return $ Cons [x, y]
 
+       
 ifStmt :: Parser HenryVal
 ifStmt =
   do reserved "if"
@@ -276,6 +306,12 @@ assignStmt =
                 _ <- char '>'
                 return x
             <|>
+            do
+                _ <- char '['
+                x <- try parseList
+                _ <- char ']'
+                return x
+            <|>
                 parseNumber
             <|>
                 parseString
@@ -325,12 +361,6 @@ parseFile file =
        Left e  -> print e >> fail "parse error"
        Right r -> return r
 
-
-
-
-
-
-
 --------------------------------------------------
                 -- Evaluation --
 --------------------------------------------------
@@ -357,6 +387,23 @@ showVal (RBinOp op) = show op
 
 unwordsList :: [HenryVal] -> String
 unwordsList = unwords . map showVal
+
+top :: Env -> [HenryVal] -> IOThrowsError HenryVal
+top env [List (x : xs)] = return x
+top env [(Atom a)] = getVar env a >>= (\b -> top env [b])
+top env [badArg]                = throwError $ TypeMismatch "pair" badArg
+top env badArgList              = throwError $ NumArgs 1 badArgList
+
+tail :: Env -> [HenryVal] -> IOThrowsError HenryVal
+tail env [List (x : xs)] = return $ List xs
+tail env [badArg]                = throwError $ TypeMismatch "pair" badArg
+tail env badArgList              = throwError $ NumArgs 1 badArgList
+
+
+cons :: Env -> [HenryVal] ->  IOThrowsError HenryVal
+cons env [List xs, List []] = return $ List $ xs
+cons env [List xs, List ys] = return $ List $ xs ++ ys
+
 
 evalABinOp :: Env -> HenryVal -> ABinOp -> HenryVal -> IOThrowsError HenryVal
 evalABinOp env (Integer a) Add (Integer b)   = return $ Integer $ a + b
@@ -419,6 +466,9 @@ eval env (List [Atom "set!", Atom var, form]) =
 eval env (Seq [Atom "define", Atom var, form]) =
      eval env form >>= defineVar env var
 eval env val@(List _) = return val
+eval env (Top xs) = top env xs
+eval env (Tail xs) = tail env xs
+eval env (Cons xs) = cons env xs
 eval env val@(Seq _) = return val
 eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool c) then (eval env x) else (eval env y))         
 eval env (While cond stmt) = evalWhile env cond stmt                                                                                                  
