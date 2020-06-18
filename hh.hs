@@ -95,7 +95,7 @@ languageDef =
                                      , "cons"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/", "%", ":="
-                                      , "<", ">", "and", "or", "not", "is"
+                                      , "<", ">", "and", "or", "not", "="
                                      ]
            }
 lexer = Token.makeTokenParser languageDef
@@ -191,6 +191,7 @@ parseBinary = do
                                                                 return $ String "Error"
 
 
+
 parseNumber :: Parser HenryVal
 parseNumber = liftM (Integer . read) $ many1 digit
 
@@ -232,6 +233,18 @@ parseExpr =   henryParser
                 x <- try parseBinary
                 _ <- char '>'
                 return x
+          <|> do
+                _ <- char '<'
+                _ <- char '<'
+                x <- try parseBinary
+                _ <- char '>'
+                _ <- char ' '
+                reservedOpNames "="
+                _ <- char '<'
+                y <- try parseBinary
+                _ <- char '>'
+                _ <- char '>'
+                return (x,y)
 
 listStmt :: Parser HenryVal
 listStmt = 
