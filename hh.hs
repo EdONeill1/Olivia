@@ -94,7 +94,7 @@ languageDef =
                                      , "tail"
                                      , "cons"
                                      ]
-           , Token.reservedOpNames = ["+", "-", "*", "/", ":="
+           , Token.reservedOpNames = ["+", "-", "*", "/", "%", ":="
                                       , "<", ">", "and", "or", "not"
                                      ]
            }
@@ -150,40 +150,42 @@ parseAtom = do
 parseBinary :: Parser HenryVal
 parseBinary = do
                 x <- parseNumber <|> parseString <|> parseAtom
-                op <- oneOf "/*+-<>gl^|" 
+                op <- oneOf "/*+%-<>gl^|" 
                 y <- parseNumber <|> parseString <|> parseAtom
-                if op == '*' 
-                    then 
+                if op == '*' then 
                         return $ ABinary Multiply x y 
                 else
                     if op == '/' then
                         return $ ABinary Divide x y 
                     else 
-                        if op == '+' then
-                            return $ ABinary Add x y
-                        else 
-                            if op == '-' then 
-                                return $ ABinary Subtract x y
-                            else
-                                if op == '<' then
-                                    return $ RBinary Less x y
+                        if op == '%' then
+                            return $ ABinary Modulo x y
+                        else
+                            if op == '+' then
+                                return $ ABinary Add x y
+                            else 
+                                if op == '-' then 
+                                    return $ ABinary Subtract x y
                                 else
-                                    if op == '>' then
-                                        return $ RBinary Greater x y
+                                    if op == '<' then
+                                        return $ RBinary Less x y
                                     else
-                                        if op == 'l' then
-                                            return $ RBinary LEqual x y
+                                        if op == '>' then
+                                            return $ RBinary Greater x y
                                         else
-                                            if op == 'g' then
-                                                return $ RBinary GEqual x y
+                                            if op == 'l' then
+                                                return $ RBinary LEqual x y
                                             else
-                                                if op == '^' then
-                                                    return $ BBinary And x y
+                                                if op == 'g' then
+                                                    return $ RBinary GEqual x y
                                                 else
-                                                    if op == '|' then
-                                                        return $ BBinary Or x y
+                                                    if op == '^' then
+                                                        return $ BBinary And x y
                                                     else
-                                                        return $ String "Error"
+                                                        if op == '|' then
+                                                            return $ BBinary Or x y
+                                                        else
+                                                            return $ String "Error"
 
 
 parseNumber :: Parser HenryVal
@@ -390,7 +392,6 @@ unwordsList = unwords . map showVal
 
 top :: Env -> [HenryVal] -> IOThrowsError HenryVal
 top env [List (x : xs)] = return x
-top env [(Atom a)] = getVar env a >>= (\b -> top env [b])
 top env [badArg]                = throwError $ TypeMismatch "pair" badArg
 top env badArgList              = throwError $ NumArgs 1 badArgList
 
@@ -410,6 +411,7 @@ evalABinOp env (Integer a) Add (Integer b)   = return $ Integer $ a + b
 evalABinOp env (Integer a) Subtract (Integer b)   = return $ Integer $ a - b
 evalABinOp env (Integer a) Multiply (Integer b)   = return $ Integer $ a * b
 evalABinOp env (Integer a) Divide (Integer b)   = return $ Integer $ a `div` b
+evalABinOp env (Integer a) Modulo (Integer b)   = return $ Integer $ a `mod` b
 evalABinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalABinOp env c op b)
 evalABinOp env a@(Integer _)    op  (Atom b) = getVar env b >>= (\c -> evalABinOp env a op c)
 evalABinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalABinOp env c op d))
@@ -434,7 +436,7 @@ evalRBinOp env (Integer a) GEqual (Integer b) = return $ Bool (a >= b)
 evalRBinOp env (Integer a) LEqual (Integer b) = return $ Bool (a <= b)
 evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
 evalRBinOp env a@(Integer _) op  (Atom b) = getVar env b >>= (\c -> evalRBinOp env a op c)
-evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
+-- evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
 evalRBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalRBinOp env c op d))
 
 henryBool2Bool :: HenryVal -> Bool
