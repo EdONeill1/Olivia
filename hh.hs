@@ -148,50 +148,77 @@ parseAtom = do
                          _    -> Atom atom
 
 parseBinary :: Parser HenryVal
-parseBinary = do
-                x <- parseNumber <|> parseString <|> parseAtom
-                op <- oneOf "/*+%-<>gl^|=" 
-                y <- parseNumber <|> parseString <|> parseAtom
-                if op == '*' then 
-                        return $ ABinary Multiply x y 
-                else
-                    if op == '/' then
-                        return $ ABinary Divide x y 
-                    else 
-                        if op == '%' then
-                            return $ ABinary Modulo x y
-                        else
-                            if op == '+' then
-                                return $ ABinary Add x y
-                            else 
-                                if op == '-' then 
-                                    return $ ABinary Subtract x y
-                                else
-                                    if op == '<' then
-                                        return $ RBinary Less x y
+parseBinary = do    
+                    _ <- char '<'
+                    x <- parseNumber <|> parseString <|> parseAtom
+                    op <- oneOf "/*+%-<>gl^|=" 
+                    y <- parseNumber <|> parseString <|> parseAtom
+                    _ <- char '>'
+                    _ <- char '='
+                    z <- parseNumber
+                    if op == '/' then 
+                            return $ BBinary Is (ABinary Divide x y) z 
+                    else
+                            return $ String "Error"
+             <|>
+              do
+                    x <- parseNumber <|> parseString <|> parseAtom
+                    op <- oneOf "/*+%-<>gl^|=" 
+                    y <- parseNumber <|> parseString <|> parseAtom
+                    if op == '*' then 
+                            return $ ABinary Multiply x y 
+                    else
+                        if op == '/' then
+                            return $ ABinary Divide x y 
+                        else 
+                            if op == '%' then
+                                return $ ABinary Modulo x y
+                            else
+                                if op == '+' then
+                                    return $ ABinary Add x y
+                                else 
+                                    if op == '-' then 
+                                        return $ ABinary Subtract x y
                                     else
-                                        if op == '>' then
-                                            return $ RBinary Greater x y
+                                        if op == '<' then
+                                            return $ RBinary Less x y
                                         else
-                                            if op == 'l' then
-                                                return $ RBinary LEqual x y
+                                            if op == '>' then
+                                                return $ RBinary Greater x y
                                             else
-                                                if op == 'g' then
-                                                    return $ RBinary GEqual x y
+                                                if op == 'l' then
+                                                    return $ RBinary LEqual x y
                                                 else
-                                                    if op == '^' then
-                                                        return $ BBinary And x y
+                                                    if op == 'g' then
+                                                        return $ RBinary GEqual x y
                                                     else
-                                                        if op == '|' then
-                                                            return $ BBinary Or x y
+                                                        if op == '^' then
+                                                            return $ BBinary And x y
                                                         else
-                                                            if op == '=' then
-                                                                return $ BBinary Is x y
+                                                            if op == '|' then
+                                                                return $ BBinary Or x y
                                                             else
-                                                                return $ String "Error"
+                                                                if op == '=' then
+                                                                    return $ BBinary Is x y
+                                                                else
+                                                                    return $ String "Error"    -- < <x op y> = z>
 
-
-
+                --         if op == '/' then
+                --             return $ BBinary Is (Divide x y) z 
+                --         else 
+                --             if op == '%' then
+                --                 return $ BBinary Is (Modulo x y) z
+                --             else
+                --                 if op == '+' then
+                --                     return $ BBinary Is (Add x y) z
+                --                 else 
+                --                     if op == '-' then 
+                --                         return $ BBinary Is (Subtract x y) z
+                --                     else
+                --                         return $ String "Error"
+                -- --  <|>
+           
+                                                        
 parseNumber :: Parser HenryVal
 parseNumber = liftM (Integer . read) $ many1 digit
 
@@ -225,7 +252,7 @@ parseExpr =   henryParser
           <|> parseString
           <|> do 
                 _ <- char '['
-                x <- try parseList
+                x <- try parseList                    
                 _ <- char ']'
                 return x
           <|> do 
@@ -233,18 +260,13 @@ parseExpr =   henryParser
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-          <|> do
-                _ <- char '<'
-                _ <- char '<'
-                x <- try parseBinary
-                _ <- char '>'
-                _ <- char ' '
-                reservedOpNames "="
-                _ <- char '<'
-                y <- try parseBinary
-                _ <- char '>'
-                _ <- char '>'
-                return (x,y)
+    
+
+
+
+
+
+
 
 listStmt :: Parser HenryVal
 listStmt = 
@@ -442,6 +464,7 @@ evalBBinOp env (Bool a) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Bool b) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Integer a) Is (Integer b) = return $ Bool (a == b)
+evalBBinOp env (ABinary op x y) Is (Integer b) = return $ Bool ( (eval env $ ABinary op x y) == (eval env $ (Integer b)))
 evalBBinOp env (Atom a)    op  b@(Bool _) = getVar env a >>= (\c -> evalBBinOp env c op b)
 evalBBinOp env a@(Bool _)    op  (Atom b) = getVar env b >>= (\c -> evalBBinOp env a op c)
 evalBBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalBBinOp env c op d))
