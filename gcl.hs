@@ -464,7 +464,7 @@ evalBBinOp env (Bool a) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Bool b) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Integer a) Is (Integer b) = return $ Bool (a == b)
-evalBBinOp env (ABinary op x y) Is (Integer b) = return $ Bool ( (eval env $ ABinary op x y) == (eval env $ (Integer b)))
+evalBBinOp env (ABinary op x y) Is (Integer b) = (eval env (ABinary op x y)) >>= (\a -> (evalBBinOp env a) Is (Integer b))
 evalBBinOp env (Atom a)    op  b@(Bool _) = getVar env a >>= (\c -> evalBBinOp env c op b)
 evalBBinOp env a@(Bool _)    op  (Atom b) = getVar env b >>= (\c -> evalBBinOp env a op c)
 evalBBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalBBinOp env c op d))
@@ -476,20 +476,36 @@ evalRBinOp env (Integer a) GEqual (Integer b) = return $ Bool (a >= b)
 evalRBinOp env (Integer a) LEqual (Integer b) = return $ Bool (a <= b)
 evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
 evalRBinOp env a@(Integer _) op  (Atom b) = getVar env b >>= (\c -> evalRBinOp env a op c)
--- evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
+-- evalRBinOp env (RBinary op x y) Is (Integer b) = (eval env (RBinary op x y)) >>= (\a -> (evalRBinOp env a) Is (Integer b))
 evalRBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalRBinOp env c op d))
 
-henryBool2Bool :: HenryVal -> Bool
-henryBool2Bool (Bool True) = True
-henryBool2Bool (Bool False) = False
-henryBool2Bool (String "True") = True
-henryBool2Bool (String "False") = False
+henryBool2Bool :: Env -> HenryVal -> Bool
+henryBool2Bool env (Bool True) = True
+henryBool2Bool env (Bool False) = False
+henryBool2Bool env (String "True") = True
+henryBool2Bool env (String "False") = False
+henryBool2Bool env (Atom "True") = True
+henryBool2Bool env (Atom []) = False
+henryBool2Bool env (Atom ['T']) = True
+henryBool2Bool env (Atom (p:_)) = if p == 'T' then True else False
+henryBool2Bool env (Atom ['T', 'r']) = False
+henryBool2Bool env (Atom ('T':'r':p:_)) = True
+henryBool2Bool env (String []) = False
+henryBool2Bool env (String (p:_)) = True
+henryBool2Bool env (String ['F']) = False
+henryBool2Bool env (String ('F':p:_)) = False
+henryBool2Bool env val@(Integer _) = True
+henryBool2Bool env (List []) = False
+henryBool2Bool env (List [x]) = True
+henryBool2Bool env (List (_:_:_)) = True
+henryBool2Bool env (Seq _) = True
+-- henryBool2Bool env (ABinary op x y) = henryBool2Bool (evalABinOp env x op y)
 
 
 evalWhile :: Env -> HenryVal -> HenryVal -> IOThrowsError HenryVal
 evalWhile env cond stmt = eval env stmt >>= (\c -> do
                                                      s <- eval env cond
-                                                     if (henryBool2Bool s) == False
+                                                     if (henryBool2Bool env s) == False
                                                          then return $ c
                                                             else eval env (While cond stmt))
 
@@ -512,7 +528,7 @@ eval env (Top xs) = top env xs
 eval env (Tail xs) = tail env xs
 eval env (Cons xs) = cons env xs
 eval env val@(Seq _) = return val
-eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool c) then (eval env x) else (eval env y))         
+eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool env c) then (eval env x) else (eval env y))         
 eval env (While cond stmt) = evalWhile env cond stmt                                                                                                  
 eval env val@(ABinOp _) = return val
 eval env val@(RBinOp _) = return val
