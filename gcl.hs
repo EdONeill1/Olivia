@@ -14,14 +14,17 @@
 --     [] !P(x) -> !f . x
 --     fi
 --  Od
+
 import System.Environment
 import System.IO
 import Prelude hiding (tail)
 import Data.IORef
+import Control.Applicative hiding ((<|>), many)
 import Control.Monad
 import Control.Monad.Except
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Text.ParserCombinators.Parsec.Expr
+import Text.ParserCombinators.Parsec.Char hiding (spaces)
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import Data.Char
@@ -201,24 +204,9 @@ parseBinary = do
                                                                 if op == '=' then
                                                                     return $ BBinary Is x y
                                                                 else
-                                                                    return $ String "Error"    -- < <x op y> = z>
+                                                                    return $ String "Error"    
 
-                --         if op == '/' then
-                --             return $ BBinary Is (Divide x y) z 
-                --         else 
-                --             if op == '%' then
-                --                 return $ BBinary Is (Modulo x y) z
-                --             else
-                --                 if op == '+' then
-                --                     return $ BBinary Is (Add x y) z
-                --                 else 
-                --                     if op == '-' then 
-                --                         return $ BBinary Is (Subtract x y) z
-                --                     else
-                --                         return $ String "Error"
-                -- --  <|>
-           
-                                                        
+                                                                  
 parseNumber :: Parser HenryVal
 parseNumber = liftM (Integer . read) $ many1 digit
 
@@ -292,19 +280,22 @@ listStmt =
        _ <- char ']'
        return $ Cons [x, y]
 
+
+
        
 ifStmt :: Parser HenryVal
 ifStmt =
-  do reserved "if"
+  do 
+     reserved "if"
      cond  <- bExpression <|>
               do 
                 _ <- char '<'
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved " []"
+     reserved "        []"
      stmt1 <- statement
-     reserved " []"
+     reserved "        []"
      stmt2 <- statement
      return $ If cond stmt1 stmt2
   <|>
@@ -563,8 +554,14 @@ runRepl :: IO ()
 runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Henry > ") . evalAndPrint
 
 readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> getLine
+readPrompt prompt = flushStr prompt >> getLineFoo
 
+getLineFoo :: IO String
+getLineFoo = do
+                x <- getLine
+                y <- getLine
+                z <- getLine
+                return (x++y++z)
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
