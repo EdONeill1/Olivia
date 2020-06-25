@@ -293,9 +293,9 @@ ifStmt =
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved "        []"
+     reserved "[]"
      stmt1 <- statement
-     reserved "        []"
+     reserved "[]"
      stmt2 <- statement
      return $ If cond stmt1 stmt2
   <|>
@@ -307,7 +307,6 @@ ifStmt =
      stmt2 <- statement
      return $ If cond stmt1 stmt2
 
-
 whileStmt :: Parser HenryVal
 whileStmt =
   do reserved ";Do"
@@ -317,14 +316,13 @@ whileStmt =
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved "->"
      stmt <- statement <|>
              do 
                 _ <- char '<'
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved " Od"
+     reserved "Od"
      return $ While cond stmt
 
 assignStmt :: Parser HenryVal
@@ -554,7 +552,7 @@ runRepl :: IO ()
 runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Henry > ") . evalAndPrint
 
 readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> getLineFoo
+readPrompt prompt = flushStr prompt >> f 1 ""
 
 getLineFoo :: IO String
 getLineFoo = do
@@ -562,6 +560,28 @@ getLineFoo = do
                 y <- getLine
                 z <- getLine
                 return (x++y++z)
+
+getDepth :: Char -> Int
+getDepth 'i' = 1
+getDepth ';' = 2
+getDepth '<' = 0
+getDepth '>' = 0
+getDepth '[' = 0
+getDepth ']' = 0
+getDepth 'O' = 0
+getDepth _ = 0
+
+
+f :: Int -> String -> IO String
+f n s
+  | n == 0 = do
+                x <- getLine
+                return $ (s ++ x)
+  | otherwise = do
+                    x <- getLine
+                    let m = n + (getDepth (head x))
+                    f (m - 1) (s ++ x)
+
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
