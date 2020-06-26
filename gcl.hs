@@ -79,6 +79,7 @@ languageDef =
            , Token.identStart      = letter
            , Token.identLetter     = alphaNum
            , Token.reservedNames   = [ "if"
+                                     , "fi"
                                      , "then"
                                      , "else"
                                      , "while"
@@ -286,35 +287,36 @@ listStmt =
 ifStmt :: Parser HenryVal
 ifStmt =
   do 
-     reserved "if"
-     cond  <- bExpression <|>
-              do 
-                _ <- char '<'
-                x <- try parseBinary
-                _ <- char '>'
-                return x
-     reserved "[]"
+     _ <- string "if "
+     cond  <- do _ <- char '<'
+                 x <- try parseBinary
+                 _ <- char '>'
+                 _ <- string "->"
+                 return x
+     _ <- string "[] "
      stmt1 <- statement
-     reserved "[]"
+     _ <- string "[] "
      stmt2 <- statement
+     _ <- string "fi"
      return $ If cond stmt1 stmt2
   <|>
-  do reserved "if"
+  do reserved "if "
      cond  <- rExpression
      reserved " []"
      stmt1 <- statement
      reserved " []"
      stmt2 <- statement
+     reserved "fi"
      return $ If cond stmt1 stmt2
 
 whileStmt :: Parser HenryVal
 whileStmt =
-  do reserved ";Do"
-     cond  <- bExpression <|>
-              do 
+  do _ <- string "Do "
+     cond  <- do 
                 _ <- char '<'
                 x <- try parseBinary
                 _ <- char '>'
+                _ <- string "->" <|> string "-> "
                 return x
      stmt <- statement <|>
              do 
@@ -322,7 +324,7 @@ whileStmt =
                 x <- try parseBinary
                 _ <- char '>'
                 return x
-     reserved "Od"
+     _ <- string "Od"
      return $ While cond stmt
 
 assignStmt :: Parser HenryVal
@@ -562,8 +564,8 @@ getLineFoo = do
                 return (x++y++z)
 
 getDepth :: Char -> Int
-getDepth 'i' = 1
-getDepth ';' = 2
+getDepth 'i' = 2
+getDepth 'D' = 2
 getDepth '<' = 0
 getDepth '>' = 0
 getDepth '[' = 0
