@@ -111,11 +111,6 @@ integer = Token.integer lexer
 semi = Token.semi lexer
 whiteSpace = Token.whiteSpace lexer
 
-
-
-
-
-
 --------------------------------------------------
                  -- Parsing  --
 --------------------------------------------------
@@ -250,13 +245,6 @@ parseExpr =   henryParser
                 _ <- char '>'
                 return x
     
-
-
-
-
-
-
-
 listStmt :: Parser HenryVal
 listStmt = 
     do reserved "top"
@@ -293,20 +281,14 @@ ifStmt =
                  _ <- char '>'
                  _ <- string "->"
                  return x
+     spaces
      _ <- string "[] "
      stmt1 <- statement
+     spaces
      _ <- string "[] "
      stmt2 <- statement
+     spaces
      _ <- string "fi"
-     return $ If cond stmt1 stmt2
-  <|>
-  do reserved "if "
-     cond  <- rExpression
-     reserved " []"
-     stmt1 <- statement
-     reserved " []"
-     stmt2 <- statement
-     reserved "fi"
      return $ If cond stmt1 stmt2
 
 whileStmt :: Parser HenryVal
@@ -318,19 +300,21 @@ whileStmt =
                 _ <- char '>'
                 _ <- string "->" <|> string "-> "
                 return x
+     spaces
      stmt <- statement <|>
              do 
                 _ <- char '<'
                 x <- try parseBinary
                 _ <- char '>'
                 return x
+     spaces
      _ <- string "Od"
      return $ While cond stmt
 
 assignStmt :: Parser HenryVal
 assignStmt =
   do var  <- identifier
-     reservedOp ":="
+     _ <- string ":="
      expr <- do 
                 _ <- char '<'
                 x <- try parseBinary
@@ -350,40 +334,6 @@ assignStmt =
 
 skipStmt :: Parser HenryVal
 skipStmt = reserved "skip" >> return Skip
-
-aExpression :: Parser HenryVal
-aExpression = buildExpressionParser aOperators aTerm
-
-bExpression :: Parser HenryVal
-bExpression = buildExpressionParser bOperators bTerm
-
-aOperators = [ [Prefix (reservedOp "-"   >> return (Neg             ))          ]
-             , [Infix  (reservedOp "*"   >> return (ABinary Multiply)) AssocLeft,
-                Infix  (reservedOp "/"   >> return (ABinary Divide  )) AssocLeft]
-             , [Infix  (reservedOp "+"   >> return (ABinary Add     )) AssocLeft,
-                Infix  (reservedOp "-"   >> return (ABinary Subtract)) AssocLeft]
-              ]
-
-bOperators = [ [Prefix (reservedOp "not" >> return (Not             ))          ]
-             , [Infix  (reservedOp "and" >> return (BBinary And     )) AssocLeft,
-                Infix  (reservedOp "or"  >> return (BBinary Or      )) AssocLeft]
-             ]
-            
-aTerm =  parens aExpression
-     <|> liftM String identifier
-     <|> liftM Integer integer
-
-   
-bTerm =  parens bExpression <|> (reserved "true"  >> return (Bool True )) <|> (reserved "false" >> return (Bool False)) <|> rExpression
-
-rExpression =
-  do a1 <- aExpression
-     op <- relation
-     a2 <- aExpression
-     return $ RBinary op a1 a2
-
-relation = (reservedOp ">" >> return Greater) <|> (reservedOp "<" >> return Less)
-
 
 parseFile :: String -> IO HenryVal
 parseFile file =
@@ -573,7 +523,6 @@ getDepth ']' = 0
 getDepth 'O' = 0
 getDepth _ = 0
 
-
 f :: Int -> String -> IO String
 f n s
   | n == 0 = do
@@ -581,7 +530,7 @@ f n s
                 return $ (s ++ x)
   | otherwise = do
                     x <- getLine
-                    let m = n + (getDepth (head x))
+                    let m = n + (getDepth (head (dropWhile isSpace x)))
                     f (m - 1) (s ++ x)
 
 flushStr :: String -> IO ()
