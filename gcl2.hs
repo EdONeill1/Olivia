@@ -55,7 +55,6 @@ data HenryVal = Atom String
               | ABinary ABinOp HenryVal HenryVal
               | BBinary BBinOp HenryVal HenryVal
               | RBinary RBinOp HenryVal HenryVal
-              | Write HenryVal
                deriving (Read)
 
 data BBinOp = Is | And | Or deriving (Show, Read)
@@ -149,11 +148,11 @@ parseAtom = do
 
 parseBinary :: Parser HenryVal
 parseBinary = do    
-                    _ <- char '('
+                    _ <- char '<'
                     x <- parseNumber <|> parseString <|> parseAtom
                     op <- oneOf "/*+%-<>gl^|=" 
                     y <- parseNumber <|> parseString <|> parseAtom
-                    _ <- char ')'
+                    _ <- char '>'
                     _ <- char '='
                     z <- parseNumber
                     if op == '/' then 
@@ -235,16 +234,15 @@ parseExpr =   henryParser
           <|> parseAtom
           <|> parseNumber 
           <|> parseString
-          <|> parseWrite
           <|> do 
                 _ <- char '['
                 x <- try parseList                    
                 _ <- char ']'
                 return x
           <|> do 
-                _ <- char '('
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
+                _ <- char '>'
                 return x
     
 listStmt :: Parser HenryVal
@@ -271,32 +269,23 @@ listStmt =
        _ <- char ']'
        return $ Cons [x, y]
 
-parseWrite :: Parser HenryVal
-parseWrite =
-    do
-        _ <- string "write"
-        _ <- char '('
-        x <- parseAtom <|> parseNumber <|> parseList <|> parseString
-        _ <- char ')'
-        return $ Write x
+
+
        
 ifStmt :: Parser HenryVal
 ifStmt =
   do 
      _ <- string "if "
-     cond  <- do _ <- char '('
+     cond  <- do _ <- char '<'
                  x <- try parseBinary
-                 _ <- char ')'
-                 _ <- string "-> "
+                 _ <- char '>'
+                 _ <- string "->"
                  return x
+     spaces
+     _ <- string "[] "
      stmt1 <- statement
      spaces
      _ <- string "[] "
-     aond  <- do _ <- char '('
-                 y <- try parseBinary
-                 _ <- char ')'
-                 _ <- string "-> "
-                 return y
      stmt2 <- statement
      spaces
      _ <- string "fi"
@@ -306,17 +295,17 @@ whileStmt :: Parser HenryVal
 whileStmt =
   do _ <- string "Do "
      cond  <- do 
-                _ <- char '('
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
+                _ <- char '>'
                 _ <- string "->" <|> string "-> "
                 return x
      spaces
      stmt <- statement <|>
              do 
-                _ <- char '('
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
+                _ <- char '>'
                 return x
      spaces
      _ <- string "Od"
@@ -327,9 +316,9 @@ assignStmt =
   do var  <- identifier
      _ <- string ":="
      expr <- do 
-                _ <- char '('
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
+                _ <- char '>'
                 return x
             <|>
             do
@@ -341,7 +330,6 @@ assignStmt =
                 parseNumber
             <|>
                 parseString
-             
      return $ Assign var expr
 
 skipStmt :: Parser HenryVal
@@ -456,11 +444,11 @@ henryBool2Bool env (Seq _) = True
 
 
 evalWhile :: Env -> HenryVal -> HenryVal -> IOThrowsError HenryVal
-evalWhile env cond stmt = if (henryBool2Bool env cond) == False then return $ stmt else eval env (While cond (stmt))
-
-
-evalWrite :: Env -> HenryVal -> IOThrowsError HenryVal
-evalWrite env x = return $ x
+evalWhile env cond stmt = eval env stmt >>= (\c -> do
+                                                     s <- eval env cond
+                                                     if (henryBool2Bool env s) == False
+                                                         then return $ c
+                                                            else eval env (While cond stmt))
 
 
 eval :: Env -> HenryVal -> IOThrowsError HenryVal
@@ -488,7 +476,6 @@ eval env val@(RBinOp _) = return val
 eval env (ABinary op x y) = evalABinOp env x op y
 eval env (BBinary op x y) = evalBBinOp env x op y
 eval env (RBinary op x y) = evalRBinOp env x op y
-eval env (Write x) = return x
 
 readExpr :: String -> ThrowsError HenryVal
 readExpr input = case parse parseExpr "Henry" input of

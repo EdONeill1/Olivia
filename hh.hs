@@ -14,17 +14,14 @@
 --     [] !P(x) -> !f . x
 --     fi
 --  Od
-
 import System.Environment
 import System.IO
 import Prelude hiding (tail)
 import Data.IORef
-import Control.Applicative hiding ((<|>), many)
 import Control.Monad
 import Control.Monad.Except
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Text.ParserCombinators.Parsec.Expr
-import Text.ParserCombinators.Parsec.Char hiding (spaces)
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import Data.Char
@@ -55,7 +52,6 @@ data HenryVal = Atom String
               | ABinary ABinOp HenryVal HenryVal
               | BBinary BBinOp HenryVal HenryVal
               | RBinary RBinOp HenryVal HenryVal
-              | Write HenryVal
                deriving (Read)
 
 data BBinOp = Is | And | Or deriving (Show, Read)
@@ -80,7 +76,6 @@ languageDef =
            , Token.identStart      = letter
            , Token.identLetter     = alphaNum
            , Token.reservedNames   = [ "if"
-                                     , "fi"
                                      , "then"
                                      , "else"
                                      , "while"
@@ -111,6 +106,11 @@ parens = Token.parens lexer
 integer = Token.integer lexer
 semi = Token.semi lexer
 whiteSpace = Token.whiteSpace lexer
+
+
+
+
+
 
 --------------------------------------------------
                  -- Parsing  --
@@ -149,11 +149,11 @@ parseAtom = do
 
 parseBinary :: Parser HenryVal
 parseBinary = do    
-                    _ <- char '('
+                    _ <- char '<'
                     x <- parseNumber <|> parseString <|> parseAtom
                     op <- oneOf "/*+%-<>gl^|=" 
                     y <- parseNumber <|> parseString <|> parseAtom
-                    _ <- char ')'
+                    _ <- char '>'
                     _ <- char '='
                     z <- parseNumber
                     if op == '/' then 
@@ -201,9 +201,24 @@ parseBinary = do
                                                                 if op == '=' then
                                                                     return $ BBinary Is x y
                                                                 else
-                                                                    return $ String "Error"    
+                                                                    return $ String "Error"    -- < <x op y> = z>
 
-                                                                  
+                --         if op == '/' then
+                --             return $ BBinary Is (Divide x y) z 
+                --         else 
+                --             if op == '%' then
+                --                 return $ BBinary Is (Modulo x y) z
+                --             else
+                --                 if op == '+' then
+                --                     return $ BBinary Is (Add x y) z
+                --                 else 
+                --                     if op == '-' then 
+                --                         return $ BBinary Is (Subtract x y) z
+                --                     else
+                --                         return $ String "Error"
+                -- --  <|>
+           
+                                                        
 parseNumber :: Parser HenryVal
 parseNumber = liftM (Integer . read) $ many1 digit
 
@@ -235,18 +250,24 @@ parseExpr =   henryParser
           <|> parseAtom
           <|> parseNumber 
           <|> parseString
-          <|> parseWrite
           <|> do 
                 _ <- char '['
                 x <- try parseList                    
                 _ <- char ']'
                 return x
           <|> do 
-                _ <- char '('
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
+                _ <- char '>'
                 return x
     
+
+
+
+
+
+
+
 listStmt :: Parser HenryVal
 listStmt = 
     do reserved "top"
@@ -271,65 +292,58 @@ listStmt =
        _ <- char ']'
        return $ Cons [x, y]
 
-parseWrite :: Parser HenryVal
-parseWrite =
-    do
-        _ <- string "write"
-        _ <- char '('
-        x <- parseAtom <|> parseNumber <|> parseList <|> parseString
-        _ <- char ')'
-        return $ Write x
        
 ifStmt :: Parser HenryVal
 ifStmt =
-  do 
-     _ <- string "if "
-     cond  <- do _ <- char '('
-                 x <- try parseBinary
-                 _ <- char ')'
-                 _ <- string "-> "
-                 return x
+  do reserved "if"
+     cond  <- bExpression <|>
+              do 
+                _ <- char '<'
+                x <- try parseBinary
+                _ <- char '>'
+                return x
+     reserved " []"
      stmt1 <- statement
-     spaces
-     _ <- string "[] "
-     aond  <- do _ <- char '('
-                 y <- try parseBinary
-                 _ <- char ')'
-                 _ <- string "-> "
-                 return y
+     reserved " []"
      stmt2 <- statement
-     spaces
-     _ <- string "fi"
      return $ If cond stmt1 stmt2
+  <|>
+  do reserved "if"
+     cond  <- rExpression
+     reserved " []"
+     stmt1 <- statement
+     reserved " []"
+     stmt2 <- statement
+     return $ If cond stmt1 stmt2
+
 
 whileStmt :: Parser HenryVal
 whileStmt =
-  do _ <- string "Do "
-     cond  <- do 
-                _ <- char '('
+  do reserved ";Do"
+     cond  <- bExpression <|>
+              do 
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
-                _ <- string "->" <|> string "-> "
+                _ <- char '>'
                 return x
-     spaces
+     reserved "->"
      stmt <- statement <|>
              do 
-                _ <- char '('
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
+                _ <- char '>'
                 return x
-     spaces
-     _ <- string "Od"
+     reserved " Od"
      return $ While cond stmt
 
 assignStmt :: Parser HenryVal
 assignStmt =
   do var  <- identifier
-     _ <- string ":="
+     reservedOp ":="
      expr <- do 
-                _ <- char '('
+                _ <- char '<'
                 x <- try parseBinary
-                _ <- char ')'
+                _ <- char '>'
                 return x
             <|>
             do
@@ -341,11 +355,44 @@ assignStmt =
                 parseNumber
             <|>
                 parseString
-             
      return $ Assign var expr
 
 skipStmt :: Parser HenryVal
 skipStmt = reserved "skip" >> return Skip
+
+aExpression :: Parser HenryVal
+aExpression = buildExpressionParser aOperators aTerm
+
+bExpression :: Parser HenryVal
+bExpression = buildExpressionParser bOperators bTerm
+
+aOperators = [ [Prefix (reservedOp "-"   >> return (Neg             ))          ]
+             , [Infix  (reservedOp "*"   >> return (ABinary Multiply)) AssocLeft,
+                Infix  (reservedOp "/"   >> return (ABinary Divide  )) AssocLeft]
+             , [Infix  (reservedOp "+"   >> return (ABinary Add     )) AssocLeft,
+                Infix  (reservedOp "-"   >> return (ABinary Subtract)) AssocLeft]
+              ]
+
+bOperators = [ [Prefix (reservedOp "not" >> return (Not             ))          ]
+             , [Infix  (reservedOp "and" >> return (BBinary And     )) AssocLeft,
+                Infix  (reservedOp "or"  >> return (BBinary Or      )) AssocLeft]
+             ]
+            
+aTerm =  parens aExpression
+     <|> liftM String identifier
+     <|> liftM Integer integer
+
+   
+bTerm =  parens bExpression <|> (reserved "true"  >> return (Bool True )) <|> (reserved "false" >> return (Bool False)) <|> rExpression
+
+rExpression =
+  do a1 <- aExpression
+     op <- relation
+     a2 <- aExpression
+     return $ RBinary op a1 a2
+
+relation = (reservedOp ">" >> return Greater) <|> (reservedOp "<" >> return Less)
+
 
 parseFile :: String -> IO HenryVal
 parseFile file =
@@ -417,7 +464,7 @@ evalBBinOp env (Bool a) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Bool b) = return $ Bool (a || b)
 evalBBinOp env (Not (Bool a)) Or (Not (Bool b)) = return $ Bool (a || b)
 evalBBinOp env (Integer a) Is (Integer b) = return $ Bool (a == b)
-evalBBinOp env (ABinary op x y) Is (Integer b) = (eval env (ABinary op x y)) >>= (\a -> (evalBBinOp env a) Is (Integer b))
+evalBBinOp env (ABinary op x y) Is (Integer b) = return $ Bool ( (eval env $ ABinary op x y) == (eval env $ (Integer b)))
 evalBBinOp env (Atom a)    op  b@(Bool _) = getVar env a >>= (\c -> evalBBinOp env c op b)
 evalBBinOp env a@(Bool _)    op  (Atom b) = getVar env b >>= (\c -> evalBBinOp env a op c)
 evalBBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalBBinOp env c op d))
@@ -429,38 +476,22 @@ evalRBinOp env (Integer a) GEqual (Integer b) = return $ Bool (a >= b)
 evalRBinOp env (Integer a) LEqual (Integer b) = return $ Bool (a <= b)
 evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
 evalRBinOp env a@(Integer _) op  (Atom b) = getVar env b >>= (\c -> evalRBinOp env a op c)
--- evalRBinOp env (RBinary op x y) Is (Integer b) = (eval env (RBinary op x y)) >>= (\a -> (evalRBinOp env a) Is (Integer b))
+-- evalRBinOp env (Atom a)    op  b@(Integer _) = getVar env a >>= (\c -> evalRBinOp env c op b)
 evalRBinOp env (Atom a)    op (Atom b) = getVar env a >>= (\c -> getVar env b >>= (\d -> evalRBinOp env c op d))
 
-henryBool2Bool :: Env -> HenryVal -> Bool
-henryBool2Bool env (Bool True) = True
-henryBool2Bool env (Bool False) = False
-henryBool2Bool env (String "True") = True
-henryBool2Bool env (String "False") = False
-henryBool2Bool env (Atom "True") = True
-henryBool2Bool env (Atom []) = False
-henryBool2Bool env (Atom ['T']) = True
-henryBool2Bool env (Atom (p:_)) = if p == 'T' then True else False
-henryBool2Bool env (Atom ['T', 'r']) = False
-henryBool2Bool env (Atom ('T':'r':p:_)) = True
-henryBool2Bool env (String []) = False
-henryBool2Bool env (String (p:_)) = True
-henryBool2Bool env (String ['F']) = False
-henryBool2Bool env (String ('F':p:_)) = False
-henryBool2Bool env val@(Integer _) = True
-henryBool2Bool env (List []) = False
-henryBool2Bool env (List [x]) = True
-henryBool2Bool env (List (_:_:_)) = True
-henryBool2Bool env (Seq _) = True
--- henryBool2Bool env (ABinary op x y) = henryBool2Bool (evalABinOp env x op y)
+henryBool2Bool :: HenryVal -> Bool
+henryBool2Bool (Bool True) = True
+henryBool2Bool (Bool False) = False
+henryBool2Bool (String "True") = True
+henryBool2Bool (String "False") = False
 
 
 evalWhile :: Env -> HenryVal -> HenryVal -> IOThrowsError HenryVal
-evalWhile env cond stmt = if (henryBool2Bool env cond) == False then return $ stmt else eval env (While cond (stmt))
-
-
-evalWrite :: Env -> HenryVal -> IOThrowsError HenryVal
-evalWrite env x = return $ x
+evalWhile env cond stmt = eval env stmt >>= (\c -> do
+                                                     s <- eval env cond
+                                                     if (henryBool2Bool s) == False
+                                                         then return $ c
+                                                            else eval env (While cond stmt))
 
 
 eval :: Env -> HenryVal -> IOThrowsError HenryVal
@@ -481,14 +512,13 @@ eval env (Top xs) = top env xs
 eval env (Tail xs) = tail env xs
 eval env (Cons xs) = cons env xs
 eval env val@(Seq _) = return val
-eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool env c) then (eval env x) else (eval env y))         
+eval env (If cond x y) = eval env cond >>= (\c -> if (henryBool2Bool c) then (eval env x) else (eval env y))         
 eval env (While cond stmt) = evalWhile env cond stmt                                                                                                  
 eval env val@(ABinOp _) = return val
 eval env val@(RBinOp _) = return val
 eval env (ABinary op x y) = evalABinOp env x op y
 eval env (BBinary op x y) = evalBBinOp env x op y
 eval env (RBinary op x y) = evalRBinOp env x op y
-eval env (Write x) = return x
 
 readExpr :: String -> ThrowsError HenryVal
 readExpr input = case parse parseExpr "Henry" input of
@@ -517,34 +547,7 @@ runRepl :: IO ()
 runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Henry > ") . evalAndPrint
 
 readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> f 1 ""
-
-getLineFoo :: IO String
-getLineFoo = do
-                x <- getLine
-                y <- getLine
-                z <- getLine
-                return (x++y++z)
-
-getDepth :: Char -> Int
-getDepth 'i' = 2
-getDepth 'D' = 2
-getDepth '<' = 0
-getDepth '>' = 0
-getDepth '[' = 0
-getDepth ']' = 0
-getDepth 'O' = 0
-getDepth _ = 0
-
-f :: Int -> String -> IO String
-f n s
-  | n == 0 = do
-                x <- getLine
-                return $ (s ++ x)
-  | otherwise = do
-                    x <- getLine
-                    let m = n + (getDepth (head (dropWhile isSpace x)))
-                    f (m - 1) (s ++ x)
+readPrompt prompt = flushStr prompt >> getLine
 
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
