@@ -6,7 +6,7 @@ The purpose of this language is to serve as both a learning exercise of working 
 
 The project will undoubtedly be subject to change over the course of the next year. The main goal of my project is to implementation my language as a non-deterministic finite automaton and to offer proof assistance within the REPL over a collection of algorithms. 
 
-# An Olivia Program
+### An Olivia Program
 
 Olivia is a weakly typed, dynamically typed language whose data structures, the only data structure in fact is immutable. 
 
