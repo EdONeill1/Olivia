@@ -25,7 +25,8 @@ data HVal
   | Do	     HVal    [HVal] 
   | If       HVal  [HVal] [HVal]
   | SubIf    HVal  [HVal]
-  deriving (Show, Eq, Read)
+  | Load     String
+  deriving (Eq, Read)
 
 data Op
   = Add
@@ -45,6 +46,12 @@ data Op
 
 ---------- EXPRESSION PARSERS ----------
 
+load :: Parser HVal
+load = do
+  string "load"
+  spaces
+  x <- many (letter <|> space)
+  return $ Load x
 
 parseDo :: Parser HVal
 parseDo = do
@@ -182,5 +189,5 @@ parseHVal :: Parser HVal
 parseHVal = parseInteger <|> parseBool <|> parseString <|> parseList 
 
 
----------- IO : readExpr, parseFile, and main ----------
+
 
