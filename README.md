@@ -8,7 +8,7 @@ The project will undoubtedly be subject to change over the course of the next ye
 
 ### An Olivia Program
 
-Olivia is a weakly typed, dynamically typed language whose data structures, the only data structure in fact is immutable. 
+Olivia is a weakly typed, dynamically typed language whose data structures, the only data structure in fact are immutable. 
 
 Every program is written not to dissimilar to an imperative Do-While loop. Observe the following program that finds the product of a list of integers. 
 
