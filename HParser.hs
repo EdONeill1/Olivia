@@ -108,7 +108,11 @@ parseExpr = do
    spaces 
    op <- parseOp
    spaces
-   y  <- parseInteger <|>  parseString <|> parseBool <|> parseExpr
+   y  <- parseInteger <|>  parseString <|> parseBool <|> do
+                                                            char '('
+                                                            z <- parseExpr
+                                                            char ')'
+                                                            return $ z
    return $ Expr x op y
 
 

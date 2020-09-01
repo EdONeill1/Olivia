@@ -13,7 +13,6 @@ import System.Environment
 import Prelude hiding (head, tail)
 import Control.Applicative hiding ((<|>), many)
 import Text.Parsec hiding ((<|>))
-import Data.IORef
 
 
 
@@ -29,16 +28,13 @@ import Data.IORef
 --print' = putStrLn
 
 readExpr :: String -> HVal
-readExpr input = case parse parseHVal "Olivia" input of
+readExpr input = case parse parseExpr "Olivia" input of
    Left err -> HString $ "Error: " ++ show err
    Right val -> val
 
 --readExpr :: String -> String
 --readExpr input = case parse parseProgram "H" input of
---   Left err  -> show err
---   Right val -> show val
-
-
+--   Left err  -> show err --   Right val -> show val
 parseFile :: String -> IO [HVal]
 parseFile file =
 	do program <- readFile file
