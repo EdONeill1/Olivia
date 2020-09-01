@@ -28,7 +28,7 @@ import Text.Parsec hiding ((<|>))
 --print' = putStrLn
 
 readExpr :: String -> HVal
-readExpr input = case parse parseExpr "Olivia" input of
+readExpr input = case parse parseIf "Olivia" input of
    Left err -> HString $ "Error: " ++ show err
    Right val -> val
 
