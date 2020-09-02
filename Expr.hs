@@ -1,6 +1,9 @@
 module Expr where
  
 import HParser
+import Control.Monad
+import Control.Monad.Error
+import Control.Monad.Except 
 
 instance Show HVal where show = showVal
 			 
@@ -18,28 +21,28 @@ unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)
 
 
-eval :: HVal -> HVal
+eval :: HVal -> ThrowsError HVal
 ---------- EVALUATING PRIMITIVES ----------
-eval val@(HString _) = val
-eval val@(HInteger _) = val
-eval val@(HBool _) = val
-eval val@(HList _) = val
-eval (Expr x op y) = evalExpr x op y
-eval (If cond expr expr') = evalIf cond expr expr'
-eval (SubIf cond expr) = evalSubIf cond expr
+eval val@(HString _) = return val
+eval val@(HInteger _) = return val
+eval val@(HBool _) = return val
+eval val@(HList _) = return val
+eval (Expr x op y) = return $ evalExpr x op y
+--eval (If cond expr expr') = evalIf cond expr expr'
+--eval (SubIf cond expr) = evalSubIf cond expr
 
-evalIf :: HVal -> [HVal] -> [HVal] -> HVal
-evalIf cond expr expr' = if ((eval cond) == (HBool True))
-                            then HList $ map eval expr
-                            else HList $ head [(filter (/= (HInteger 1)) (map eval expr'))]
+--evalIf :: HVal -> [HVal] -> [HVal] -> HVal
+--evalIf cond expr expr' = if ((eval cond) == (HBool True))
+  --                          then HList $ map eval expr
+    --                        else HList $ head [(filter (/= (HInteger 1)) (map eval expr'))]
 
 --filterFalseEvals :: Bool -> [HVal] -> [HVal]
 --filterFalseEvals xs = filter (/= (HInteger 1)) xs
 
-evalSubIf :: HVal -> [HVal] -> HVal
-evalSubIf cond expr = if ((eval cond) == (HBool True))
-                         then HList $ map eval expr
-                         else (HInteger 1)
+--evalSubIf :: HVal -> [HVal] -> HVal
+--evalSubIf cond expr = if ((eval cond) == (HBool True))
+  --                       then HList $ map eval expr
+    --                     else (HInteger 1)
 
 
 
@@ -62,5 +65,32 @@ evalExpr (HBool x)    Equal   (HBool y)      = HBool (x == y)
 ----------- Expression Evaulation in Recursive Cases ----------
 evalExpr (HInteger x) op (Expr a op' b) = evalExpr (HInteger x) op (evalExpr a op' b)
 
------------ Expression Evaulation of Variables ----------
---
+data HError = NumArgs Integer [HVal]
+	    | TypeMismatch String HVal
+--   	    | Parser ParseError
+      	    | BadSpecialForm String HVal
+	    | NotFunction String String
+   	    | UnboundVar String String
+            | Default String
+
+showError :: HError -> String
+showError (UnboundVar message varname) = message ++ ": " ++ varname
+showError (BadSpecialForm message form) = message ++ ": " ++ show form
+showError (NotFunction message func) = message ++ ": " ++ show func
+showError (NumArgs expected found) = "Expected " ++ show expected ++ "args: found values " ++ unravel found
+showError (TypeMismatch expected found) = "Invalid type: Expected " ++ expected ++ " , Found: " ++ show found
+--showError (Parser parseErr) = "Parse error at " ++ show parseErr
+
+instance Show HError where show = showError
+
+instance Error HError where
+  noMsg = Default "An Error Has Occured"
+  strMsg = Default
+
+type ThrowsError = Either HError
+
+trapError action = catchError action (return . show)
+
+extractValue :: ThrowsError a -> a
+extractValue (Right val) = val
+----------- Expression Evaulation of Variables ---------- 
