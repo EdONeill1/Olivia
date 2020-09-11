@@ -52,20 +52,20 @@ runRepl = until_ (== "quit") (readPrompt "Olivia> ") evalAndPrint
 main :: IO ()
 main = do
  args <- getArgs
-  case length args of
+ case length args of
     0 -> runRepl
     1 -> evalAndPrint $ args !! 0
     otherwise -> putStrLn "Program takes only 0 or 1 arguements"
 
 readExpr :: String -> ThrowsError HVal
-readExpr input = case parse parseExpr "Olivia" input of
+readExpr input = case parse parseProgram "Olivia" input of
    Left err -> return $ HString $ "Error: " ++ show err
    Right val -> return $ val
 
 --readExpr :: String -> String
 --readExpr input = case parse parseProgram "H" input of
 --   Left err  -> show err --   Right val -> show val
-parseFile :: String -> IO [HVal]
+parseFile :: String -> IO HVal
 parseFile file =
 	do program <- readFile file
     	   case parse parseProgram "" program of

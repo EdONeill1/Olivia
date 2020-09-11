@@ -22,11 +22,12 @@ data HVal
   | EqExpr  HVal Op HVal  -- Redundacy in grammar, will have to fix
  | Neg      HVal
   | Assign   HVal  HVal  -- expressions and there will be another to parse the 'atomic' data.
-  | Do	     HVal    [HVal] 
+  | Do	     HVal  HVal 
   | If       HVal  [HVal] HVal
   | SubIf    HVal  [HVal]
   | Load     String
-  deriving (Show, Eq, Read)
+  | Program  [HVal]
+  deriving (Eq, Read)
 
 data Op
   = Add
@@ -142,8 +143,12 @@ parseNot = do
 parseExpression :: Parser HVal
 parseExpression = (string "Do" *> spaces *> parseDo) <|> (string "if" *> spaces *> parseIf) <|> parseAssign <|> parseExpr  
 
-parseProgram :: Parser [HVal]
-parseProgram = spaces *> many (parseExpression <* spaces)
+parseProgram :: Parser HVal
+parseProgram = do
+                  spaces
+                  x <- many parseExpression
+                  spaces
+                  return $ Program x
 
 
 
