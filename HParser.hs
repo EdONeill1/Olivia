@@ -145,8 +145,7 @@ parseExpression = (string "Do" *> spaces *> parseDo) <|> (string "if" *> spaces 
 
 parseProgram :: Parser HVal
 parseProgram = do
-                  spaces
-                  x <- many parseExpression
+                  x <- spaces *> many (parseExpression <* spaces)
                   spaces
                   return $ Program x
 

@@ -1,9 +1,20 @@
 module Expr where
  
 import HParser
+
+import System.Environment
+import System.IO
+import Prelude hiding (tail)
+import Data.IORef
+import Control.Applicative hiding ((<|>), many)
 import Control.Monad
-import Control.Monad.Error
-import Control.Monad.Except 
+import Control.Monad.Except
+import Text.ParserCombinators.Parsec hiding (spaces)
+import Text.ParserCombinators.Parsec.Expr
+import Text.ParserCombinators.Parsec.Char hiding (spaces)
+import Text.ParserCombinators.Parsec.Language
+import qualified Text.ParserCombinators.Parsec.Token as Token
+import Data.Char
 
 instance Show HVal where show = showVal
 			 
@@ -14,8 +25,12 @@ showVal (HBool True) = "True"
 showVal (HBool False) = "False"
 showVal (HList list) = "[" ++ unravel list ++ "]"
 showVal (Expr x op y) = show x ++ " " ++ show op ++ " " ++ show y
-showVal (If cond expr expr') = "If (" ++ show cond ++ ") " ++ show expr ++ " " ++ show expr'
-showVal (SubIf cond expr) = "SubIf (" ++ show cond ++ ") " ++ show expr
+showVal (If cond expr expr') = "if (" ++ show cond ++ ")->" ++ show expr++ show expr'
+showVal (SubIf cond expr) = "[] (" ++ show cond ++ ")->" ++ show expr
+showVal (Do cond expr) = "Do (" ++ show cond ++ ")->" ++ "\n" ++ show expr
+showVal (Assign var val) = show var ++ " := " ++ show val ++ "\n"
+showVal (Program program) = show program
+
 
 unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)
@@ -28,7 +43,7 @@ eval val@(HInteger _) = return val
 eval val@(HBool _) = return val
 eval val@(HList _) = return val
 eval (Expr x op y) = return $ evalExpr x op y
-
+                                                                
 
 evalExpr :: HVal -> Op -> HVal -> HVal
 ----------- Expression Evaulation of Atomic Values ----------
@@ -51,31 +66,29 @@ evalExpr (HInteger x) op (Expr a op' b) = evalExpr (HInteger x) op (evalExpr a o
 evalExpr (HBool x)    op (Expr a op' b) = evalExpr (HBool x)    op (evalExpr a op' b)
 
 data HError = NumArgs Integer [HVal]
-	    | TypeMismatch String HVal
---   	    | Parser ParseError
-      	    | BadSpecialForm String HVal
-	    | NotFunction String String
-   	    | UnboundVar String String
-            | Default String
+               | TypeMismatch String HVal
+               | Parser ParseError
+               | BadSpecialForm String HVal
+               | NotFunction String String
+               | UnboundVar String String
+               | Default String
 
 showError :: HError -> String
-showError (UnboundVar message varname) = message ++ ": " ++ varname
+showError (UnboundVar message varname)  = message ++ ": " ++ varname
 showError (BadSpecialForm message form) = message ++ ": " ++ show form
-showError (NotFunction message func) = message ++ ": " ++ show func
-showError (NumArgs expected found) = "Expected " ++ show expected ++ "args: found values " ++ unravel found
-showError (TypeMismatch expected found) = "Invalid type: Expected " ++ expected ++ " , Found: " ++ show found
---showError (Parser parseErr) = "Parse error at " ++ show parseErr
+showError (NotFunction message func)    = message ++ ": " ++ show func
+showError (NumArgs expected found)      = "Expected " ++ show expected 
+                                       ++ " args; found values " ++ unravel found
+showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected
+                                       ++ ", found " ++ show found
+showError (Parser parseErr)             = "Parse error at " ++ show parseErr
 
 instance Show HError where show = showError
 
-instance Error HError where
-  noMsg = Default "An Error Has Occured"
-  strMsg = Default
-
 type ThrowsError = Either HError
+type IOThrowsError = ExceptT HError IO
 
 trapError action = catchError action (return . show)
 
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
------------ Expression Evaulation of Variables ---------- 
