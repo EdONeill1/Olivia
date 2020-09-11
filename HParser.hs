@@ -20,13 +20,13 @@ data HVal
   | HList    [HVal]
   | Expr    HVal Op HVal  -- Expressions will be thought of as data. There will be one parser that parsers these 
   | EqExpr  HVal Op HVal  -- Redundacy in grammar, will have to fix
-  | Neg      HVal
+ | Neg      HVal
   | Assign   HVal  HVal  -- expressions and there will be another to parse the 'atomic' data.
   | Do	     HVal    [HVal] 
-  | If       HVal  [HVal] [HVal]
+  | If       HVal  [HVal] HVal
   | SubIf    HVal  [HVal]
   | Load     String
-  deriving (Eq, Read)
+  deriving (Show, Eq, Read)
 
 data Op
   = Add
@@ -55,8 +55,6 @@ load = do
 
 parseDo :: Parser HVal
 parseDo = do
-   _  <- string "Do"
-   spaces 
    _  <- char '('
    x  <- (parseIf <|> parseBool <|> parseExpr <|> parseEqExpr)  -- Will be changed to a Boolean expression
    _  <- string ")->"
@@ -69,13 +67,11 @@ parseDo = do
 
 parseIf :: Parser HVal
 parseIf = do
- _  <-  string "if"
- spaces
- _  <-  string "("
+ _     <-  string "("
  cond  <- (parseExpr <|> parseEqExpr <|> parseBool) 
- _  <-  string ")->"
+ _     <-  string ")->"
  expr  <- spaces *> many (parseExpression <* spaces)
- expr' <- spaces *> many (parseExpression <* spaces)
+ expr' <- parseSubIf
  return $ If cond expr expr'
 
 parseSubIf :: Parser HVal
@@ -104,15 +100,15 @@ parseEqExpr =
 
 parseExpr :: Parser HVal
 parseExpr = do
-   x  <- (parseInteger <|> parseBool)
+   x  <- (parseBool <|> parseInteger <|> parseString)
    spaces 
    op <- parseOp
    spaces
-   y  <- parseInteger <|> parseBool <|> do
-                                           char '('
-                                           z <- parseExpr
-                                           char ')'
-                                           return $ z
+   y  <- parseInteger <|> do
+                             char '('
+                             z <- parseExpr
+                             char ')'
+                             return $ z
    return $ Expr x op y
 
 
@@ -144,7 +140,7 @@ parseNot = do
 
 
 parseExpression :: Parser HVal
-parseExpression = parseDo <|> parseIf <|> parseAssign <|> parseExpr  
+parseExpression = (string "Do" *> spaces *> parseDo) <|> (string "if" *> spaces *> parseIf) <|> parseAssign <|> parseExpr  
 
 parseProgram :: Parser [HVal]
 parseProgram = spaces *> many (parseExpression <* spaces)
