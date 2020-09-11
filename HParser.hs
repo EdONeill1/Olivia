@@ -20,7 +20,7 @@ data HVal
   | HList    [HVal]
   | Expr    HVal Op HVal  -- Expressions will be thought of as data. There will be one parser that parsers these 
   | EqExpr  HVal Op HVal  -- Redundacy in grammar, will have to fix
- | Neg      HVal
+  | Neg      HVal
   | Assign   HVal  HVal  -- expressions and there will be another to parse the 'atomic' data.
   | Do	     HVal    [HVal] 
   | If       HVal  [HVal] [HVal]
@@ -104,15 +104,15 @@ parseEqExpr =
 
 parseExpr :: Parser HVal
 parseExpr = do
-   x  <- (parseInteger <|> parseString <|> parseBool)
+   x  <- (parseInteger <|> parseBool)
    spaces 
    op <- parseOp
    spaces
-   y  <- parseInteger <|>  parseString <|> parseBool <|> do
-                                                            char '('
-                                                            z <- parseExpr
-                                                            char ')'
-                                                            return $ z
+   y  <- parseInteger <|> parseBool <|> do
+                                           char '('
+                                           z <- parseExpr
+                                           char ')'
+                                           return $ z
    return $ Expr x op y
 
 

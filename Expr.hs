@@ -28,22 +28,6 @@ eval val@(HInteger _) = return val
 eval val@(HBool _) = return val
 eval val@(HList _) = return val
 eval (Expr x op y) = return $ evalExpr x op y
---eval (If cond expr expr') = evalIf cond expr expr'
---eval (SubIf cond expr) = evalSubIf cond expr
-
---evalIf :: HVal -> [HVal] -> [HVal] -> HVal
---evalIf cond expr expr' = if ((eval cond) == (HBool True))
-  --                          then HList $ map eval expr
-    --                        else HList $ head [(filter (/= (HInteger 1)) (map eval expr'))]
-
---filterFalseEvals :: Bool -> [HVal] -> [HVal]
---filterFalseEvals xs = filter (/= (HInteger 1)) xs
-
---evalSubIf :: HVal -> [HVal] -> HVal
---evalSubIf cond expr = if ((eval cond) == (HBool True))
-  --                       then HList $ map eval expr
-    --                     else (HInteger 1)
-
 
 
 evalExpr :: HVal -> Op -> HVal -> HVal
@@ -53,17 +37,18 @@ evalExpr (HInteger x) Sub (HInteger y)  = HInteger (x - y)
 evalExpr (HInteger x) Mult (HInteger y) = HInteger (x * y)
 evalExpr (HInteger x) Div (HInteger y)  = HInteger (x `div` y)
 evalExpr (HInteger x) Mod (HInteger y)  = HInteger (x `mod` y)
-evalExpr (HBool x)    And (HBool y)     = HBool    (x && y)
-evalExpr (HBool x)    Or  (HBool y)     = HBool    (x || y)
 evalExpr (HInteger x) Greater (HInteger y)   = HBool (x > y)
 evalExpr (HInteger x) GreaterEq (HInteger y) = HBool (x >= y)
 evalExpr (HInteger x) Less    (HInteger y)   = HBool (x < y)
 evalExpr (HInteger x) LessEq  (HInteger y)   = HBool (x <= y)
 evalExpr (HInteger x) Equal   (HInteger y)   = HBool (x == y)
-evalExpr (HBool x)    Equal   (HBool y)      = HBool (x == y)
 
+evalExpr (HBool x) And (HBool y) = HBool (x && y)
+evalExpr (HBool x)    Or      (HBool y)      = HBool (x || y)
+evalExpr (HBool x)    Equal   (HBool y)      = HBool (x == y)
 ----------- Expression Evaulation in Recursive Cases ----------
 evalExpr (HInteger x) op (Expr a op' b) = evalExpr (HInteger x) op (evalExpr a op' b)
+evalExpr (HBool x)    op (Expr a op' b) = evalExpr (HBool x)    op (evalExpr a op' b)
 
 data HError = NumArgs Integer [HVal]
 	    | TypeMismatch String HVal
