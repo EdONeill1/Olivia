@@ -56,14 +56,14 @@ load = do
 
 parseDo :: Parser HVal
 parseDo = do
-   _  <- char '('
-   x  <- (parseIf <|> parseBool <|> parseExpr <|> parseEqExpr)  -- Will be changed to a Boolean expression
-   _  <- string ")->"
+   _     <- char '('
+   cond  <- (parseIf <|> parseBool <|> parseExpr <|> parseEqExpr)  -- Will be changed to a Boolean expression
+   _     <- string ")->"
    spaces
-   y  <- parseProgram 
+   expr  <- parseExpression --parseProgram 
    spaces
     --_  <- string "Od " Program doesn't parse properly when Od is included.
-   return $ Do x y
+   return $ Do cond expr
    
 
 parseIf :: Parser HVal

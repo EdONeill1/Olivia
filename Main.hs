@@ -58,7 +58,7 @@ main = do
     otherwise -> putStrLn "Program takes only 0 or 1 arguements"
 
 readExpr :: String -> ThrowsError HVal
-readExpr input = case parse parseExpr "Olivia" input of
+readExpr input = case parse parseExpression "Olivia" input of
    Left err -> return $ HString $ "Error: " ++ show err
    Right val -> return $ val
 

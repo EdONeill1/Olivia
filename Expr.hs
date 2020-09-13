@@ -43,7 +43,20 @@ eval val@(HInteger _) = return val
 eval val@(HBool _) = return val
 eval val@(HList _) = return val
 eval (Expr x op y) = return $ evalExpr x op y
-                                                                
+eval (Do cond expr) = return $ evalDo cond expr
+
+evalHVal :: HVal -> HVal
+evalHVal val@(HString _) = val
+evalHVal val@(HInteger _) = val
+evalHVal val@(HBool _) = val
+evalHVal val@(HList _) = val
+evalHVal (Expr x op y) = evalExpr x op y
+evalHVal (Do cond expr) = evalDo cond expr
+
+evalDo :: HVal -> HVal -> HVal
+evalDo cond expr
+  | evalHVal cond == HBool False = expr
+  | otherwise = evalDo cond (evalHVal expr)
 
 evalExpr :: HVal -> Op -> HVal -> HVal
 ----------- Expression Evaulation of Atomic Values ----------
