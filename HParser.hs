@@ -19,13 +19,14 @@ data HVal
   | HString  String
   | HList    [HVal]
   | Expr    HVal Op HVal  -- Expressions will be thought of as data. There will be one parser that parsers these 
+  | VarExpr String Op HVal
   | EqExpr  HVal Op HVal  -- Redundacy in grammar, will have to fix
  | Neg      HVal
-  | Assign   HVal  HVal  -- expressions and there will be another to parse the 'atomic' data.
-  | Do	     HVal  HVal 
-  | If       HVal  [HVal] HVal
-  | SubIf    HVal  [HVal]
-  | Load     String
+  | Assign  String HVal  -- expressions and there will be another to parse the 'atomic' data.
+  | Do	    HVal  HVal 
+  | If      HVal  [HVal] HVal
+  | SubIf   HVal  [HVal]
+  | Load    String
   | Program  [HVal]
   deriving (Eq, Read)
 
@@ -99,9 +100,18 @@ parseEqExpr =
    _  <- char ')'
    return $ EqExpr x op y
 
+parseVarExpr :: Parser HVal
+parseVarExpr = do
+   x  <- many (letter)
+   spaces
+   op <- parseOp
+   spaces
+   y  <- parseInteger <|> parseExpr
+   return $ VarExpr x op y
+
 parseExpr :: Parser HVal
 parseExpr = do
-   x  <- (parseBool <|> parseInteger <|> parseString)
+   x  <- parseString --(parseBool <|> parseInteger <|> parseString)
    spaces 
    op <- parseOp
    spaces
@@ -115,7 +125,7 @@ parseExpr = do
 
 parseAssign :: Parser HVal 
 parseAssign = do
- var <- parseString 
+ var <- many letter
  spaces
  _   <- string ":="
  spaces
@@ -141,7 +151,7 @@ parseNot = do
 
 
 parseExpression :: Parser HVal
-parseExpression = (string "Do" *> spaces *> parseDo) <|> (string "if" *> spaces *> parseIf) <|> parseAssign <|> parseExpr  
+parseExpression = parseAssign <|> parseExpr --(string "Do" *> spaces *> parseDo) <|> (string "if" *> spaces *> parseIf) <|> parseAssign <|> parseVarExpr <|> parseExpr
 
 parseProgram :: Parser HVal
 parseProgram = do
