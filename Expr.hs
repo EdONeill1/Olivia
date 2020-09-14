@@ -80,6 +80,7 @@ evalExpr env (HBool x) And (HBool y) = return $ HBool (x && y)
 evalExpr env (HBool x)    Or      (HBool y)      = return $ HBool (x || y)
 evalExpr env (HBool x)    Equal   (HBool y)      = return $ HBool (x == y)
 
+evalExpr env (HString x) op (HInteger y) = getVar env x >>= (\a -> evalExpr env a op (HInteger y))
 ----------- Expression Evalation in Recursive Cases ----------
 --evalExpr env (HInteger x) op (Expr a op' b) = evalExpr env (HInteger x) op (evalExpr env a op' b)
 --evalExpr env (HBool x)    op (Expr a op' b) = evalExpr env (HBool x)    op (evalExpr env a op' b)

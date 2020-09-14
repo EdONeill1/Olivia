@@ -151,7 +151,7 @@ parseNot = do
 
 
 parseExpression :: Parser HVal
-parseExpression = parseAssign <|> parseExpr --(string "Do" *> spaces *> parseDo) <|> (string "if" *> spaces *> parseIf) <|> parseAssign <|> parseVarExpr <|> parseExpr
+parseExpression = (string "Do" *> spaces *> parseDo) <|> (string "if" *> spaces *> parseIf) <|> parseAssign <|> parseExpr
 
 parseProgram :: Parser HVal
 parseProgram = do
