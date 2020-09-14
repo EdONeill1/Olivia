@@ -64,7 +64,8 @@ evalDo env cond expr
 
 
 evalExpr :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
------------ Expression Evaulation of Atomic Values ----------
+
+----------- Expression Evaulation of Integers ----------
 evalExpr env (HInteger x) Add (HInteger y)  = return $ HInteger (x + y)
 evalExpr env (HInteger x) Sub (HInteger y)  = return $ HInteger (x - y)
 evalExpr env (HInteger x) Mult (HInteger y) = return $ HInteger (x * y)
@@ -76,18 +77,36 @@ evalExpr env (HInteger x) Less    (HInteger y)   = return $ HBool (x < y)
 evalExpr env (HInteger x) LessEq  (HInteger y)   = return $ HBool (x <= y)
 evalExpr env (HInteger x) Equal   (HInteger y)   = return $ HBool (x == y)
 
-evalExpr env (HBool x) And (HBool y) = return $ HBool (x && y)
+----------- Expression Evaluation of Booleans ----------
+evalExpr env (HBool x) And (HBool y)             = return $ HBool (x && y)
 evalExpr env (HBool x)    Or      (HBool y)      = return $ HBool (x || y)
 evalExpr env (HBool x)    Equal   (HBool y)      = return $ HBool (x == y)
 
-evalExpr env (HString x) op (HInteger y) = getVar env x >>= (\a -> evalExpr env a op (HInteger y))
+----------- Expression Evaluation of Variables ---------- 
+evalExpr env (HString x)  op (HInteger y) = getVar env x >>= (\a -> evalExpr env a op (HInteger y))
+evalExpr env (HInteger x) op (HString y)  = getVar env y >>= (\a -> evalExpr env (HInteger x) op a)
+evalExpr env (HString x)  op (HString y)  = getVar env x >>= (\a -> getVar env y >>= (\b -> evalExpr env a op b))
+evalExpr env (HString x)  op (HBool y) = getVar env x >>= (\a -> evalExpr env a op (HBool y))
+evalExpr env (HBool x) op (HString y) = getVar env y >>= (\a -> evalExpr env (HBool x) op a)
+
 ----------- Expression Evalation in Recursive Cases ----------
---evalExpr env (HInteger x) op (Expr a op' b) = evalExpr env (HInteger x) op (evalExpr env a op' b)
+evalExpr env (HInteger x) op (Expr a op' b) = evalExpr env (HInteger x) op (evalHValExpr env a op' b)
 --evalExpr env (HBool x)    op (Expr a op' b) = evalExpr env (HBool x)    op (evalExpr env a op' b)
 
+evalHValExpr :: Env -> HVal -> Op -> HVal -> HVal
+evalHValExpr env (HInteger x) Add (HInteger y) = HInteger (x + y)
 
----------- Expression Evaluation of Variabless ----------
 
+
+
+
+
+
+
+--------------------------------------------------------------
+             ------ Error Handling -----
+--------------------------------------------------------------
+        --
 data HError = NumArgs Integer [HVal]
                | TypeMismatch String HVal
                | Parser ParseError

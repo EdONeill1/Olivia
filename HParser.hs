@@ -111,15 +111,15 @@ parseVarExpr = do
 
 parseExpr :: Parser HVal
 parseExpr = do
-   x  <- parseString --(parseBool <|> parseInteger <|> parseString)
+   x  <- (parseBool <|> parseInteger <|> parseString)
    spaces 
    op <- parseOp
    spaces
-   y  <- parseInteger <|> do
-                             char '('
-                             z <- parseExpr
-                             char ')'
-                             return $ z
+   y  <- parseBool <|> parseInteger <|> parseString <|> do
+                                                          char '('
+                                                          z <- parseExpr
+                                                          char ')'
+                                                          return $ z
    return $ Expr x op y
 
 
