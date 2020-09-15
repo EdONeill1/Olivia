@@ -39,71 +39,75 @@ unravel list = unwords (map showVal list)
 
 
 eval :: Env -> HVal -> IOThrowsError HVal
+
 ---------- EVALUATING PRIMITIVES ----------
-eval env val@(HString _) = return val
+eval env val@(HString _)  = return val
 eval env val@(HInteger _) = return val
-eval env val@(HBool _) = return val
-eval env val@(HList _) = return val
-eval env (Expr x op y) = evalExpr env x op y
-eval env (Do cond expr) = return $ evalDo env cond expr
+eval env val@(HBool _)    = return val
+eval env val@(HList _)    = return val
+
+---------- EVLAUATING EXPRESSIONS ----------
+eval env (Expr x op y)    = evalExpr env x op y
+eval env (Do cond expr)   = evalDo env cond expr
 eval env (Assign var val) = eval env val >>= defineVar env var
-eval env (HList [HString "set!", HString var, form]) =
-     eval env form >>= setVar env var
 
-evalHVal :: Env -> HVal -> HVal
-evalHVal env val@(HString _) = val
-evalHVal env val@(HInteger _) = val
-evalHVal env val@(HBool _) = val
-evalHVal env val@(HList _) = val
-evalHVal env (Do cond expr) = evalDo env cond expr
 
-evalDo :: Env -> HVal -> HVal -> HVal
-evalDo env cond expr
-  | evalHVal env cond == HBool False = expr
-  | otherwise = evalDo env cond (evalHVal env expr)
+evalDo :: Env -> HVal -> [HVal] -> IOThrowsError HVal
+evalDo env cond expr = eval env cond >>= \x -> case x of
+                                                          HBool False -> return $ HInteger 1
+                                                          HBool True  -> return $ map (\x -> return $ eval env x) expr >>= \y -> return $ eval env $ Do cond expr
+--evalDo env cond expr = eval env cond >>= \x -> case x of
+  --                                               HBool True  -> return $ map (eval env) expr >>= \y -> return $ eval env (Do cond expr)
+    --                                             HBool False -> 1
 
+
+--evalDo :: Env -> HVal -> HVal -> IOThrowsError HVal
+--evalDo env cond expr = eval env cond >>= \x -> case x of
+  --                                                  HBool True  -> eval env expr >>= \y -> evalDo env x y --eval env $ Do cond (expr)
+    --                                                HBool False -> return $ HInteger 1
+                                                    --eval env expr >>= \y -> eval env $ Do cond y
 
 -- May add function : evalExpr env (Expr _ _ _) op (HVal _)   .... Not sure if it's a good idea or not.
 evalExpr :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
 
 ----------- Expression Evaulation of Integers ----------
-evalExpr env (HInteger x) Add (HInteger y)       = return $ HInteger (x + y)
-evalExpr env (HInteger x) Sub (HInteger y)       = return $ HInteger (x - y)
-evalExpr env (HInteger x) Mult (HInteger y)      = return $ HInteger (x * y)
-evalExpr env (HInteger x) Div (HInteger y)       = return $ HInteger (x `div` y)
-evalExpr env (HInteger x) Mod (HInteger y)       = return $ HInteger (x `mod` y)
-evalExpr env (HInteger x) Greater (HInteger y)   = return $ HBool (x > y)
-evalExpr env (HInteger x) GreaterEq (HInteger y) = return $ HBool (x >= y)
-evalExpr env (HInteger x) Less    (HInteger y)   = return $ HBool (x < y)
-evalExpr env (HInteger x) LessEq  (HInteger y)   = return $ HBool (x <= y)
-evalExpr env (HInteger x) Equal   (HInteger y)   = return $ HBool (x == y)
+evalExpr env (HInteger x) Add       (HInteger y)   = return $ HInteger (x + y)
+evalExpr env (HInteger x) Sub       (HInteger y)   = return $ HInteger (x - y)
+evalExpr env (HInteger x) Mult      (HInteger y)   = return $ HInteger (x * y)
+evalExpr env (HInteger x) Div       (HInteger y)   = return $ HInteger (x `div` y)
+evalExpr env (HInteger x) Mod       (HInteger y)   = return $ HInteger (x `mod` y)
+evalExpr env (HInteger x) Greater   (HInteger y)   = return $ HBool (x > y)
+evalExpr env (HInteger x) GreaterEq (HInteger y)   = return $ HBool (x >= y)
+evalExpr env (HInteger x) Less      (HInteger y)   = return $ HBool (x < y)
+evalExpr env (HInteger x) LessEq    (HInteger y)   = return $ HBool (x <= y)
+evalExpr env (HInteger x) Equal     (HInteger y)   = return $ HBool (x == y)
 
 ----------- Expression Evaluation of Booleans ----------
-evalExpr env (HBool x)    And (HBool y)          = return $ HBool (x && y)
-evalExpr env (HBool x)    Or      (HBool y)      = return $ HBool (x || y)
-evalExpr env (HBool x)    Equal   (HBool y)      = return $ HBool (x == y)
+evalExpr env (HBool x)    And      (HBool y)       = return $ HBool (x && y)
+evalExpr env (HBool x)    Or       (HBool y)       = return $ HBool (x || y)
+evalExpr env (HBool x)    Equal    (HBool y)       = return $ HBool (x == y)
 
 ----------- Expression Evaluation of Variables ---------- 
-evalExpr env (HString x)  op (HInteger y)    = getVar env x >>= (\a -> evalExpr env a op (HInteger y))
-evalExpr env (HInteger x) op (HString y)     = getVar env y >>= (\a -> evalExpr env (HInteger x) op a)
-evalExpr env (HString x)  op (HString y)     = getVar env x >>= (\a -> getVar env y >>= (\b -> evalExpr env a op b))
-evalExpr env (HString x)  op (HBool y)       = getVar env x >>= (\a -> evalExpr env a op (HBool y))
-evalExpr env (HBool x)    op (HString y)     = getVar env y >>= (\a -> evalExpr env (HBool x) op a)
+evalExpr env (HString x)  op       (HInteger y)    = getVar env x >>= (\a -> evalExpr env a op (HInteger y))
+evalExpr env (HInteger x) op       (HString y)     = getVar env y >>= (\a -> evalExpr env (HInteger x) op a)
+evalExpr env (HString x)  op       (HString y)     = getVar env x >>= (\a -> getVar env y >>= (\b -> evalExpr env a op b))
+evalExpr env (HString x)  op       (HBool y)       = getVar env x >>= (\a -> evalExpr env a op (HBool y))
+evalExpr env (HBool x)    op       (HString y)     = getVar env y >>= (\a -> evalExpr env (HBool x) op a)
 
 ----------- Expression Evalation in Recursive Cases ----------
-evalExpr env (HInteger x) op (Expr a op' b) = eval env (Expr a op' b) >>= \y -> evalExpr env (HInteger x) op y
-evalExpr env (HString  x) op (Expr a op' b) = eval env (Expr a op' b) >>= \y -> getVar env x >>= \y' -> evalExpr env y op y'
-evalExpr env (HBool    x) op (Expr a op' b) = eval env (Expr a op' b) >>= \y -> evalExpr env (HBool    x) op y
+evalExpr env (HInteger x) op      (Expr a op' b)   = eval env (Expr a op' b) >>= \y -> evalExpr env (HInteger x) op y
+evalExpr env (HString  x) op      (Expr a op' b)   = eval env (Expr a op' b) >>= \y -> getVar env x >>= \y' -> evalExpr env y op y'
+evalExpr env (HBool    x) op      (Expr a op' b)   = eval env (Expr a op' b) >>= \y -> evalExpr env (HBool    x) op y
 
 
 --------------------------------------------------------------
              ------ Error Handling -----
 --------------------------------------------------------------
-        --
+       
 data HError = NumArgs Integer [HVal]
                | TypeMismatch String HVal
                | Parser ParseError
-               | BadSpecialForm String HVal
+               | BadSpecialForm String HVal 
                | NotFunction String String
                | UnboundVar String String
                | Default String

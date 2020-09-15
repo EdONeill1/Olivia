@@ -23,7 +23,7 @@ data HVal
   | EqExpr  HVal Op HVal  -- Redundacy in grammar, will have to fix
  | Neg      HVal
   | Assign  String HVal  -- expressions and there will be another to parse the 'atomic' data.
-  | Do	    HVal  HVal 
+  | Do	    HVal  [HVal] 
   | If      HVal  [HVal] HVal
   | SubIf   HVal  [HVal]
   | Load    String
@@ -61,7 +61,7 @@ parseDo = do
    cond  <- (parseIf <|> parseBool <|> parseExpr <|> parseEqExpr)  -- Will be changed to a Boolean expression
    _     <- string ")->"
    spaces
-   expr  <- parseExpression --parseProgram 
+   expr  <- many (parseExpression) --parseProgram 
    spaces
     --_  <- string "Od " Program doesn't parse properly when Od is included.
    return $ Do cond expr
