@@ -1,7 +1,9 @@
+{-# LANGUAGE LambdaCase #-}
 module Expr where
  
 import HParser
 
+import System.Exit
 import Data.Foldable
 import System.Environment
 import System.IO
@@ -49,16 +51,43 @@ eval env val@(HList _)    = return val
 
 ---------- EVLAUATING EXPRESSIONS ----------
 eval env (Expr x op y)    = evalExpr env x op y
-eval env (Do cond expr)   = evalDo env cond expr
+eval env (Do cond expr)   = doo env cond expr
 eval env (Assign var val) = eval env val >>= defineVar env var
 
+while :: (Monad m) => m Bool -> m a -> m ()
+while cond action = do
+    c <- cond
+    when c $ do
+        action
+        while cond action
+
+f :: Env -> HVal -> [HVal] -> IOThrowsError HVal
+f env cond expr = do
+        traverse_ (eval env) expr
+        eval env $ Do cond expr
+
+whileM_ :: (Monad m) => m Bool -> m a -> m ()
+whileM_ condition body = loop
+  where
+    loop = condition >>= \ case
+      True -> body >> loop
+      False -> pure ()
+
+doo :: Env -> HVal -> [HVal] -> IOThrowsError ()
+doo env cond expr = do
+  traverse_ (eval env) expr
+  whileM_ (isTrue <$> eval env cond) (traverse_ (eval env) expr)
+
+isTrue :: HVal -> Bool
+isTrue (HBool True) = True
+isTrue (HBool False) = False
 
 evalDo :: Env -> HVal -> [HVal] -> IOThrowsError HVal
 evalDo env cond expr = eval env cond >>= \x -> case x of
-                                                          HBool False -> return $ HInteger 1
-                                                          HBool True  -> do
-                                                                  traverse_ (eval env) expr
-                                                                  eval env $ Do cond expr
+                                                HBool False -> return $ HString "Success"
+                                                HBool True  -> do
+                                                            traverse_ (eval env) expr
+                                                            eval env $ Do cond expr
                                                                   --return $ map (\x -> eval env x) expr >>= \y -> return $ eval env $ Do cond expr
 --evalDo env cond expr = eval env cond >>= \x -> case x of
   --                                               HBool True  -> return $ map (eval env) expr >>= \y -> return $ eval env (Do cond expr)
