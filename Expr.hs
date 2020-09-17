@@ -2,6 +2,7 @@ module Expr where
  
 import HParser
 
+import Data.Foldable
 import System.Environment
 import System.IO
 import Prelude hiding (tail)
@@ -55,7 +56,10 @@ eval env (Assign var val) = eval env val >>= defineVar env var
 evalDo :: Env -> HVal -> [HVal] -> IOThrowsError HVal
 evalDo env cond expr = eval env cond >>= \x -> case x of
                                                           HBool False -> return $ HInteger 1
-                                                          HBool True  -> return $ map (\x -> return $ eval env x) expr >>= \y -> return $ eval env $ Do cond expr
+                                                          HBool True  -> do
+                                                                  traverse_ (eval env) expr
+                                                                  eval env $ Do cond expr
+                                                                  --return $ map (\x -> eval env x) expr >>= \y -> return $ eval env $ Do cond expr
 --evalDo env cond expr = eval env cond >>= \x -> case x of
   --                                               HBool True  -> return $ map (eval env) expr >>= \y -> return $ eval env (Do cond expr)
     --                                             HBool False -> 1
