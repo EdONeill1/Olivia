@@ -35,24 +35,24 @@ showStatement :: Statement -> String
 showStatement (Assign var val) = show var ++ " := " ++ show val
 showStatement (Do cond expr)   = "Do (" ++ show cond ++ ")->" ++ show expr
 
-evalHVal :: HVal -> ThrowsError HVal
-evalHVal val @(HInteger _) = return $ val
-evalHVal val @(HBool    _) = return $ val
-evalHVal val @(HString  _) = return $ val
-evalHVal val @(HList    _) = return $ val
-evalHVal (Expr x op y)     = return $ evalExpr x op y
+evalHVal :: Env -> HVal -> IOThrowsError HVal
+evalHVal env val @(HInteger _) = return $ val
+evalHVal env val @(HBool    _) = return $ val
+evalHVal env val @(HString  _) = return $ val
+evalHVal env val @(HList    _) = return $ val
+evalHVal env (Expr x op y)     = evalExpr env x op y
 
-evalExpr :: HVal -> Op -> HVal -> HVal
-evalExpr (HInteger x) Add  (HInteger y) = HInteger (x   +   y)
-evalExpr (HInteger x) Sub  (HInteger y) = HInteger (x   -   y)
-evalExpr (HInteger x) Mult (HInteger y) = HInteger (x   *   y)
-evalExpr (HInteger x) Div  (HInteger y) = HInteger (x `div` y)
-evalExpr (HInteger x) Mod  (HInteger y) = HInteger (x `mod` y)
+evalExpr :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
+evalExpr env (HInteger x) Add  (HInteger y) = return $ HInteger (x   +   y)
+evalExpr env (HInteger x) Sub  (HInteger y) = return $ HInteger (x   -   y)
+evalExpr env (HInteger x) Mult (HInteger y) = return $ HInteger (x   *   y)
+evalExpr env (HInteger x) Div  (HInteger y) = return $ HInteger (x `div` y)
+evalExpr env (HInteger x) Mod  (HInteger y) = return $ HInteger (x `mod` y)
 
-evalExpr (HInteger x) op (Expr x' op' y') = evalExpr (HInteger x) op (evalExpr x' op' y')
+evalExpr env (HInteger x) op (Expr x' op' y') = evalExpr env x' op' y' >>= \y -> evalExpr env (HInteger x) op y 
 
-evalExpr (HBool x) And (HBool y) = HBool (x && y)
-evalExpr (HBool x) Or  (HBool y) = HBool (x || y)
+evalExpr env (HBool x) And (HBool y) = return $ HBool (x && y)
+evalExpr env (HBool x) Or  (HBool y) = return $ HBool (x || y)
 
 
 
