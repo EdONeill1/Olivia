@@ -35,7 +35,7 @@ showStatement :: Statement -> String
 showStatement (Assign var val) = show var ++ " := " ++ show val
 showStatement (Do cond expr)   = "Do (" ++ show cond ++ ")->" ++ show expr
 
-evalHVal :: HVal -> IOThrowsError HVal
+evalHVal :: HVal -> ThrowsError HVal
 evalHVal val @(HInteger _) = return $ val
 evalHVal val @(HBool    _) = return $ val
 evalHVal val @(HString  _) = return $ val

@@ -65,15 +65,16 @@ import Text.Parsec hiding ((<|>))
 --   Left err -> return $ HString $ "Error: " ++ show err
 --   Right val -> return $ val
 
-readExpr :: String -> HVal
+readExpr :: String -> ThrowsError HVal
 readExpr input = case parse parseHVal "Olivia" input of
-   Left err  -> HString $ show err
-   Right val -> val
+   Left err  -> return $ HString $ show err
+   Right val -> return $ val
 
 main :: IO ()
 main = do
-        expr <- getArgs
-        getArgs >>= putStrLn . show . evalHVal . readExpr . (!! 0) 
+        expr   <- getArgs
+        evaled <- return $ liftM show $ readExpr (expr !! 0) >>= evalHVal
+        putStrLn $ extractValue $ trapError evaled
 --parseFile :: String -> IO HVal
 --parseFile file =
 --	do program <- readFile file
