@@ -20,12 +20,17 @@ data HVal
   | HList    [HVal]
   | Neg      HVal
   | Expr     HVal  Op HVal
+  | Assign   String HVal 
    deriving (Eq, Read)
 
 data Statement
-  = Assign  String HVal 
-  | Do	    HVal  [Statement] 
-  | Program [Statement]
+  = Do	    HVal  [HVal] 
+  | Program [HVal] [Statement]
+  deriving (Eq, Read)
+
+data Prog
+  = Atoms   [HVal]
+  | Actions [Statement]
   deriving (Eq, Read)
 
 data Op
@@ -40,14 +45,14 @@ parseDo = do
    cond  <- parseBool <|> parseExpr
    string ")->"
    spaces
-   expr  <- many (parseExpression)
+   expr  <- many (parseHVal)
    spaces
    return $ Do cond expr
 
 
 
 parseVals :: Parser HVal
-parseVals = parseInteger <|> parseBool
+parseVals = parseString <|> parseInteger <|> parseBool
 
 parseExpr :: Parser HVal
 parseExpr = do 
@@ -59,7 +64,7 @@ parseExpr = do
         return $ Expr x op y
 
 
-parseAssign :: Parser Statement 
+parseAssign :: Parser HVal 
 parseAssign = do
  var <- many letter
  spaces
@@ -75,13 +80,14 @@ parseAssign = do
 
 
 parseExpression :: Parser Statement
-parseExpression = (string "Do" *> spaces *> parseDo) <|> parseAssign 
+parseExpression = try (string "Do" *> spaces *> parseDo) 
 
 parseProgram :: Parser Statement
 parseProgram = do
-                  x <- spaces *> many (parseExpression <* spaces)
+                  x <- try( spaces *> many (parseHVal <* spaces))
+                  y <- try( spaces *> many (parseExpression <* spaces))
                   spaces
-                  return $ Program x
+                  return $ Program x y
 
 
 
@@ -122,5 +128,5 @@ parseList = liftM HList $ (char '[' *> sepBy parseHVal spaces <* char ']')
 
 
 parseHVal :: Parser HVal
-parseHVal = try (parseExpr) <|> parseInteger <|> parseBool <|> parseString <|> parseList 
+parseHVal = try (parseExpr) <|> try (parseAssign) <|> parseInteger <|> parseBool <|> parseString <|> parseList 
 

@@ -24,16 +24,17 @@ instance Show HVal where show = showVal
 instance Show Statement where show = showStatement
 
 showVal :: HVal -> String
-showVal (HInteger val) = show val
-showVal (HBool   True) = "True"
-showVal (HBool  False) = "False"
-showVal (HString  val) = val
-showVal (HList    val) = "[" ++ show val ++ "]"
-showVal (Expr x op y ) = show x ++ " " ++ show op ++ " " ++ show y
+showVal (HInteger val)   = show val
+showVal (HBool   True)   = "True"
+showVal (HBool  False)   = "False"
+showVal (HString  val)   = val
+showVal (HList    val)   = "[" ++ show val ++ "]"
+showVal (Expr x op y )   = show x ++ " " ++ show op ++ " " ++ show y
+showVal (Assign var val) = show var ++ " := " ++ show val
 
 showStatement :: Statement -> String
-showStatement (Assign var val) = show var ++ " := " ++ show val
 showStatement (Do cond expr)   = "Do (" ++ show cond ++ ")->" ++ show expr
+showStatement (Program x y)    = "Prog : " ++ unwords (map show x) ++ "       " ++ unwords (map show y)
 
 evalHVal :: Env -> HVal -> IOThrowsError HVal
 evalHVal env val @(HInteger _) = return $ val
@@ -41,6 +42,18 @@ evalHVal env val @(HBool    _) = return $ val
 evalHVal env val @(HString  _) = return $ val
 evalHVal env val @(HList    _) = return $ val
 evalHVal env (Expr x op y)     = evalExpr env x op y
+evalHVal env (Assign var val)  = evalHVal env val >>= defineVar env var
+
+evalStatement :: Env -> Statement -> IOThrowsError ()
+evalStatement env (Do cond expr)   = evalDo env $ Do cond expr
+
+evalDo :: Env -> Statement -> IOThrowsError ()
+evalDo env (Do cond expr) = evalHVal env cond >>= \x -> case x of 
+                                                          HBool False -> return ()
+                                                          HBool True  -> do
+                                                                  traverse_ (evalHVal env) expr
+                                                                  evalStatement env $ Do cond expr
+
 
 evalExpr :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
 evalExpr env (HInteger x) Add  (HInteger y) = return $ HInteger (x   +   y)
@@ -54,8 +67,11 @@ evalExpr env (HInteger x) op (Expr x' op' y') = evalExpr env x' op' y' >>= \y ->
 evalExpr env (HBool x) And (HBool y) = return $ HBool (x && y)
 evalExpr env (HBool x) Or  (HBool y) = return $ HBool (x || y)
 
-
-
+evalExpr env (HString x)  op       (HInteger y)    = getVar env x >>= (\a -> evalExpr env a op (HInteger y))
+evalExpr env (HInteger x) op       (HString y)     = getVar env y >>= (\a -> evalExpr env (HInteger x) op a)
+evalExpr env (HString x)  op       (HString y)     = getVar env x >>= (\a -> getVar env y >>= (\b -> evalExpr env a op b))
+evalExpr env (HString x)  op       (HBool y)       = getVar env x >>= (\a -> evalExpr env a op (HBool y))
+evalExpr env (HBool x)    op       (HString y)     = getVar env y >>= (\a -> evalExpr env (HBool x) op a)
 
 unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)
