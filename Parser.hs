@@ -34,7 +34,7 @@ data Prog
   deriving (Eq, Read)
 
 data Op
-  = Add | Sub | Mult | Div | Mod | And | Or | Greater | Less | GreaterEq | LessEq | Not | Equal
+  = Add | Sub | Mult | Div | Mod | And | Or | Greater | Less | GreaterEq | LessEq | Not | Equal 
   deriving (Show, Eq, Read)
 
 ---------- EXPRESSION PARSERS ----------

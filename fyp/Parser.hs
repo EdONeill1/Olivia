@@ -19,7 +19,7 @@ data HVal
   | Arith    HVal Op HVal
    deriving (Eq, Read)
 
-data Op = Add | Sub | Mult | Div | Mod | And | Or deriving (Show, Eq, Read)
+data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max deriving (Show, Eq, Read)
 
 
 ---------- HVal Parsers ----------
@@ -43,8 +43,10 @@ parseList :: Parser HVal
 parseList = liftM HList $ (char '[' *> sepBy parseVals spaces <* char ']')
 
 parseOp :: Parser Op
-parseOp = classifyOps <$> ((string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod"))
+parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod"))
   where
+    classifyOps "min" = Min
+    classifyOps "max" = Max
     classifyOps "and" = And
     classifyOps "or"  = Or
     classifyOps "+"   = Add
@@ -56,12 +58,20 @@ parseOp = classifyOps <$> ((string "and") <|> (string "or") <|> (string "+") <|>
 
 parseArith :: Parser HVal
 parseArith = do
-        x  <- try (parseInteger) <|> try (parseBool) -- Will add string for variables letter
+        x  <- try (parseInteger) <|> try (parseBool)
         spaces
         op <- parseOp
         spaces
-        y <- try (parseInteger) <|> try (parseBool) <|> try (char '(' *> parseArith <* char ')')
+        y  <- try (parseInteger) <|> try (parseBool) <|> try (char '(' *> parseArith <* char ')')
         return $ Arith x op y
+     <|>
+        do
+           op <- try (string "min.") <|> try (string "max.")
+           x  <- try (parseInteger)
+           _  <- string "."
+           y  <- try (parseInteger) <|> try (char '(' *> parseArith <* char ')') 
+           spaces
+           if op == "min." then return $ Arith x Min y else return $ Arith x Max y 
 
 parseVals :: Parser HVal
 parseVals = try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString)  <|> try (parseInteger)
