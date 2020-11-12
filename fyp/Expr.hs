@@ -37,6 +37,9 @@ evalArithmetic (HInteger x) Mult (HInteger y) = HInteger (x * y)
 evalArithmetic (HInteger x) Div  (HInteger y) = HInteger (x `div` y)
 evalArithmetic (HInteger x) Mod  (HInteger y) = HInteger (x `mod` y)
 evalArithmetic (HInteger x) op   (Arith x' op' y') = evalArithmetic (HInteger x) op (evalArithmetic x' op' y')
+evalArithmetic (HBool    x) And  (HBool y)    = HBool (x && y)
+evalArithmetic (HBool    x) Or   (HBool y)    = HBool (x || y)
+evalArithmetic (HBool    x) op   (Arith x' op' y') = evalArithmetic (HBool x) op (evalArithmetic x' op' y')
 
 evalVal :: HVal -> HVal
 evalVal val @(HInteger _) = val

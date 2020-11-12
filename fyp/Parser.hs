@@ -19,7 +19,7 @@ data HVal
   | Arith    HVal Op HVal
    deriving (Eq, Read)
 
-data Op = Add | Sub | Mult | Div | Mod deriving (Show, Eq, Read)
+data Op = Add | Sub | Mult | Div | Mod | And | Or deriving (Show, Eq, Read)
 
 
 ---------- HVal Parsers ----------
@@ -43,8 +43,10 @@ parseList :: Parser HVal
 parseList = liftM HList $ (char '[' *> sepBy parseVals spaces <* char ']')
 
 parseOp :: Parser Op
-parseOp = classifyOps <$> ((string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod"))
+parseOp = classifyOps <$> ((string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod"))
   where
+    classifyOps "and" = And
+    classifyOps "or"  = Or
     classifyOps "+"   = Add
     classifyOps "-"   = Sub
     classifyOps "*"   = Mult
@@ -54,11 +56,11 @@ parseOp = classifyOps <$> ((string "+") <|> (string "-") <|> (string "*") <|> (s
 
 parseArith :: Parser HVal
 parseArith = do
-        x  <- parseInteger -- Will add string for variables letter
+        x  <- try (parseInteger) <|> try (parseBool) -- Will add string for variables letter
         spaces
         op <- parseOp
         spaces
-        y <- try (parseInteger) <|> try (char '(' *> parseArith <* char ')')
+        y <- try (parseInteger) <|> try (parseBool) <|> try (char '(' *> parseArith <* char ')')
         return $ Arith x op y
 
 parseVals :: Parser HVal
