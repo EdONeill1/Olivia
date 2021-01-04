@@ -18,9 +18,9 @@ import Text.ParserCombinators.Parsec.Char hiding (spaces)
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
---type Env = IORef [(String, IORef HVal)]
 
 instance Show HVal where show = showVal
+instance Show HStatement where show = showStatement
 
 showVal :: HVal -> String
 showVal (HInteger val)   = show val
@@ -29,6 +29,9 @@ showVal (HBool  False)   = "False"
 showVal (HString  val)   = val
 showVal (HList    val)   = "[" ++ show val ++ "]"
 showVal (Arith x op y)   = show x ++ " " ++ show op ++ " " ++ show y
+
+showStatement :: HStatement -> String
+showStatement (Eval val) = showVal val
 
 evalArithmetic :: HVal -> Op -> HVal -> HVal
 evalArithmetic (HInteger x) Add  (HInteger y) = HInteger (x + y)
@@ -43,10 +46,16 @@ evalArithmetic (HBool    x) And  (HBool y)    = HBool (x && y)
 evalArithmetic (HBool    x) Or   (HBool y)    = HBool (x || y)
 evalArithmetic (HBool    x) op   (Arith x' op' y') = evalArithmetic (HBool x) op (evalArithmetic x' op' y')
 
+evalIOVal :: IO HVal -> IO HVal
+evalIOVal val = val
+
 evalVal :: HVal -> HVal
 evalVal val @(HInteger _) = val
 evalVal val @(HBool    _) = val
 evalVal val @(HString  _) = val
 evalVal val @(HList    _) = val
 evalVal (Arith x op y) = evalArithmetic x op y
+
+evalStatement :: HStatement -> HVal
+evalStatement (Eval val) = evalVal val
 

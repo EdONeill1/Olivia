@@ -1,3 +1,6 @@
 ----- PRELIMINARIES BEFORE GCL OPERATIONS IMPLEMENTATION -----
-* REPL
 * LAYING OUT DIFFERENCECS BETWEEN OPERATIONS AND VALUES
+* Implement Assignment 
+* Implement Repetition 
+* Implement Deterministic Selection
+* Implement Skip

@@ -19,6 +19,9 @@ data HVal
   | Arith    HVal Op HVal
    deriving (Eq, Read)
 
+data HStatement
+  =  Eval HVal deriving (Eq, Read)
+
 data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max deriving (Show, Eq, Read)
 
 
@@ -72,6 +75,11 @@ parseArith = do
            y  <- try (parseInteger) <|> try (char '(' *> parseArith <* char ')') 
            spaces
            if op == "min." then return $ Arith x Min y else return $ Arith x Max y 
+
+parseEvalHVal :: Parser HStatement
+parseEvalHVal = do
+        x <- parseArith
+        return $ Eval x
 
 parseVals :: Parser HVal
 parseVals = try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString)  <|> try (parseInteger)
