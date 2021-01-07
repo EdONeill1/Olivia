@@ -35,15 +35,9 @@ evalString env expr = do
 
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr = do
-        statement <- readStatement expr
-        concat <$> mapM (runIOThrows . liftM show . evalStatement env) statement >>= putStrLn
-        
-
-
-        --x <- evalString env expr
-       -- put
+        evalString env expr
+        putStrLn ""
                                                    
-                                                    
 
 run :: String -> IO ()
 run expr = nullEnv >>= flip evalAndPrint expr
