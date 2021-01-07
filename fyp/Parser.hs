@@ -17,10 +17,13 @@ data HVal
   | HString  String
   | HList    [HVal]
   | Arith    HVal Op HVal
-   deriving (Eq, Read)
+  |  Assign String HVal
+    deriving (Eq, Read)
 
 data HStatement
-  =  Eval HVal deriving (Eq, Read)
+  =  Eval   HVal
+  |  Program [HVal]
+    deriving (Eq, Read)
 
 data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max deriving (Show, Eq, Read)
 
@@ -61,11 +64,11 @@ parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and")
 
 parseArith :: Parser HVal
 parseArith = do
-        x  <- try (parseInteger) <|> try (parseBool)
+        x  <- try (parseInteger) <|> try (parseBool) <|> try (parseString)
         spaces
         op <- parseOp
         spaces
-        y  <- try (parseInteger) <|> try (parseBool) <|> try (char '(' *> parseArith <* char ')')
+        y  <- try (parseInteger) <|> try (parseBool) <|> try (parseString) <|> try (char '(' *> parseArith <* char ')')
         return $ Arith x op y
      <|>
         do
@@ -76,10 +79,35 @@ parseArith = do
            spaces
            if op == "min." then return $ Arith x Min y else return $ Arith x Max y 
 
-parseEvalHVal :: Parser HStatement
-parseEvalHVal = do
-        x <- parseArith
-        return $ Eval x
 
 parseVals :: Parser HVal
-parseVals = try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString)  <|> try (parseInteger)
+parseVals = try (parseAssign) <|> try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString)  <|> try (parseInteger)
+
+---------- Statement Parsers ----------
+
+parseAssign :: Parser HVal
+parseAssign = do
+        var <- many letter
+        spaces
+        _   <- string ":="
+        spaces
+        val <- try (parseVals) <|> try (parseArith)
+        return $ Assign var val
+
+parseEvalHVal :: Parser HStatement
+parseEvalHVal = do
+        x <- try (parseVals)
+        return $ Eval x
+
+
+parseStatements :: Parser HStatement
+parseStatements = try (parseEvalHVal)
+
+
+
+
+
+
+
+
+
