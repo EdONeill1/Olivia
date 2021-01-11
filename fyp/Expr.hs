@@ -17,19 +17,19 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Char hiding (spaces)
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
-
+import Text.Parsec.Char
 
 instance Show HVal where show = showVal
 instance Show HStatement where show = showStatement
 
 showVal :: HVal -> String
-showVal (HInteger val)   = show val
-showVal (HBool   True)   = "True"
-showVal (HBool  False)   = "False"
-showVal (HString  val)   = val
-showVal (HList    val)   = "[" ++ show val ++ "]"
-showVal (Arith x op y)   = show x ++ " " ++ show op ++ " " ++ show y
-showVal (Assign var val) = show var ++ " := " ++ show val
+showVal (HInteger val)   = show val ++ "\n"
+showVal (HBool   True)   = "True\n"
+showVal (HBool  False)   = "False\n"
+showVal (HString  val)   = val ++ "\n"
+showVal (HList    val)   = "[" ++ show val ++ "]\n"
+showVal (Arith x op y)   = show x ++ " " ++ show op ++ " " ++ show y ++ "\n"
+showVal (Assign var val) = show var ++ " := " ++ show val ++ "\n"
 
 showStatement :: HStatement -> String
 showStatement (Eval val) = showVal val
@@ -42,6 +42,8 @@ evalArithmetic env (HInteger x) Div  (HInteger y) = return $ HInteger (x `div` y
 evalArithmetic env (HInteger x) Mod  (HInteger y) = return $ HInteger (x `mod` y)
 evalArithmetic env (HInteger x) Max  (HInteger y) = if x > y then return $ (HInteger x) else return $ (HInteger y)
 evalArithmetic env (HInteger x) Min  (HInteger y) = if x < y then return $ (HInteger x) else return $ (HInteger y)
+evalArithmetic env (HInteger x) Less (HInteger y) = if x < y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) Greater (HInteger y) = if x > y then return $ (HBool True) else return $ (HBool False)
 evalArithmetic env (HInteger x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HInteger x) op y
 evalArithmetic env (HBool    x) And  (HBool y)    = return $ HBool (x && y)
 evalArithmetic env (HBool    x) Or   (HBool y)    = return $ HBool (x || y)
@@ -61,9 +63,35 @@ evalVal env val @(HList    _) = return $ val
 evalVal env (Arith x op y)    = evalArithmetic env x op y
 evalVal env (Assign var val)  = evalVal env val >>= defineVar env var
 
-evalStatement :: Env -> HStatement -> IOThrowsError HVal
-evalStatement env (Eval val) = evalVal env val
 
+
+evalPrint :: Env -> HStatement -> IOThrowsError HVal
+evalPrint env (Print (HString val)) = getVar env val >>= \x -> evalVal env x
+--evalPrint env (Print (HString val)) = getVar env val >>= \x -> fmap (showVal) (evalVal env x)
+                                
+
+evalDo :: Env -> HStatement -> IOThrowsError ()
+evalDo env (Do cond expr) = evalVal env cond >>= \x -> case x of 
+                                                          HBool False -> return ()
+                                                          HBool True  -> do
+                                                                  traverse_ (evalVal env) expr
+                                                                  evalStatement_ env $ Do cond expr
+
+
+evalStatement_ :: Env -> HStatement -> IOThrowsError ()
+evalStatement_ env (Do cond expr) = evalDo env (Do cond expr)
+evalStatement_ env (Print (HString val)) = getVar env val >>= \x -> liftIO $ putStrLn $ show x
+evalStatement_ env (Print val) = do
+                                   x <- evalVal env val
+                                   liftIO $ putStrLn $ show x 
+evalStatement_ env (Eval val) = do
+    result <- evalVal env val
+    return ()
+
+evalStatement :: Env -> HStatement -> IOThrowsError HVal
+evalStatement env (Eval val)  = evalVal env val
+--evalStatement env (Print val) = return $ val
+--evalStatement env (Do cond expr) = evalDo env <$> (Do cond expr)
 
 unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)

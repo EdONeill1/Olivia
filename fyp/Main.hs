@@ -6,6 +6,7 @@ import Expr
 import System.Environment
 import Text.ParserCombinators.Parsec
 import Control.Monad
+import Data.List
 
 readExpr :: String -> ThrowsError HVal
 readExpr input = case parse parseVals "Olivia" input of
@@ -19,16 +20,14 @@ readStatement input = do
           Left err -> fail $ show err
           Right parsed -> return $ parsed
 
-        --case parse parseEvalHVal "Olivia" p of
-        --  Right y -> return y
-
---main :: IO()
---main = getArgs >>= putStrLn . show . evalVal . readExpr . (!! 0)
 
 evalString :: Env -> String -> IO String
 evalString env expr = do
         x <- readStatement expr
-        concat <$> mapM (runIOThrows . liftM show . evalStatement env) x
+        concat <$> mapM (runIOThrows . liftM show . evalStatement_ env) x
+        --mapM (runIOThrows . liftM show . evalStatement env) x 
+
+        -- evalStatement env x
         --map (\exprs -> runIOThrows $ liftM show $ evalStatement env exprs) x
         --map (runIOThrows $ liftM show $ evalStatement env) x
         --runIOThrows $ liftM show $ (evalStatement env x)   -- >>= runIOThrows $ liftM show $ evalStatement env 
@@ -36,8 +35,8 @@ evalString env expr = do
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr = do
         evalString env expr
-        putStrLn ""
-                                                   
+        return ()
+                          
 
 run :: String -> IO ()
 run expr = nullEnv >>= flip evalAndPrint expr
@@ -60,5 +59,5 @@ parseFile file =
 		Right parsed -> return $ parsed
 
 parseProgram :: Parser [HStatement]
-parseProgram = spaces *> many (parseEvalHVal <* spaces)
+parseProgram = spaces *> many (parseStatements <* spaces)
 

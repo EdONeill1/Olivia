@@ -22,10 +22,11 @@ data HVal
 
 data HStatement
   =  Eval   HVal
-  |  Program [HVal]
+  |  Print  HVal
+  |  Do     HVal [HVal]
     deriving (Eq, Read)
 
-data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max deriving (Show, Eq, Read)
+data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater deriving (Show, Eq, Read)
 
 
 ---------- HVal Parsers ----------
@@ -49,7 +50,7 @@ parseList :: Parser HVal
 parseList = liftM HList $ (char '[' *> sepBy parseVals spaces <* char ']')
 
 parseOp :: Parser Op
-parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod"))
+parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod") <|> (string "<") <|> (string ">"))
   where
     classifyOps "min" = Min
     classifyOps "max" = Max
@@ -60,7 +61,8 @@ parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and")
     classifyOps "*"   = Mult
     classifyOps "div" = Div
     classifyOps "mod" = Mod
-
+    classifyOps "<"   = Less
+    classifyOps ">"   = Greater
 
 parseArith :: Parser HVal
 parseArith = do
@@ -100,8 +102,32 @@ parseEvalHVal = do
         return $ Eval x
 
 
+parsePrint :: Parser HStatement
+parsePrint = do
+        _ <- try (string "print")
+        _ <- char '('
+        toPrint <- parseVals 
+        _ <- char ')'
+        return $ Print toPrint
+
+
+
+
+parseDo :: Parser HStatement
+parseDo = do
+   string "Do"
+   spaces
+   char '('
+   cond  <- try (parseArith)
+   string ")->"
+   spaces
+   expr  <- many (parseVals)
+   spaces
+   string "Od" 
+   return $ Do cond expr
+
 parseStatements :: Parser HStatement
-parseStatements = try (parseEvalHVal)
+parseStatements = try (parsePrint) <|> try (parseEvalHVal)
 
 
 
