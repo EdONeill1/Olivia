@@ -1,0 +1,9 @@
+x := 1
+
+print(x)
+
+Do (x < 10)->
+        x := x + 1
+Od
+
+print(x)

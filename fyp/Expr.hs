@@ -74,12 +74,16 @@ evalDo :: Env -> HStatement -> IOThrowsError ()
 evalDo env (Do cond expr) = evalVal env cond >>= \x -> case x of 
                                                           HBool False -> return ()
                                                           HBool True  -> do
-                                                                  traverse_ (evalVal env) expr
+                                                                  traverse_ (evalStatement_ env) expr
                                                                   evalStatement_ env $ Do cond expr
 
 
 evalStatement_ :: Env -> HStatement -> IOThrowsError ()
-evalStatement_ env (Do cond expr) = evalDo env (Do cond expr)
+evalStatement_ env (Do cond expr) = evalVal env cond >>= \x -> case x of
+                                                                 HBool False -> return ()
+                                                                 HBool True  -> do
+                                                                         traverse_ (evalStatement_ env) expr
+                                                                         evalStatement_ env $ Do cond expr
 evalStatement_ env (Print (HString val)) = getVar env val >>= \x -> liftIO $ putStrLn $ show x
 evalStatement_ env (Print val) = do
                                    x <- evalVal env val

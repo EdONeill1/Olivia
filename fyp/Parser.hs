@@ -23,7 +23,7 @@ data HVal
 data HStatement
   =  Eval   HVal
   |  Print  HVal
-  |  Do     HVal [HVal]
+  |  Do     HVal [HStatement]
     deriving (Eq, Read)
 
 data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater deriving (Show, Eq, Read)
@@ -117,17 +117,17 @@ parseDo :: Parser HStatement
 parseDo = do
    string "Do"
    spaces
-   char '('
-   cond  <- try (parseArith)
+   string "("
+   cond  <- try (parseVals)
    string ")->"
    spaces
-   expr  <- many (parseVals)
+   expr  <- many (parseStatements)
    spaces
    string "Od" 
    return $ Do cond expr
 
 parseStatements :: Parser HStatement
-parseStatements = try (parsePrint) <|> try (parseEvalHVal)
+parseStatements = try (parseDo) <|> try (parsePrint) <|> try (parseEvalHVal) 
 
 
 
