@@ -17,13 +17,14 @@ data HVal
   | HString  String
   | HList    [HVal]
   | Arith    HVal Op HVal
-  |  Assign String HVal
+  | Assign   String HVal
     deriving (Eq, Read)
 
 data HStatement
   =  Eval   HVal
   |  Print  HVal
   |  Do     HVal [HStatement]
+  |  If     HVal [HStatement]
     deriving (Eq, Read)
 
 data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater deriving (Show, Eq, Read)
@@ -71,6 +72,7 @@ parseArith = do
         op <- parseOp
         spaces
         y  <- try (parseInteger) <|> try (parseBool) <|> try (parseString) <|> try (char '(' *> parseArith <* char ')')
+        spaces
         return $ Arith x op y
      <|>
         do
@@ -94,6 +96,7 @@ parseAssign = do
         _   <- string ":="
         spaces
         val <- try (parseVals) <|> try (parseArith)
+        spaces
         return $ Assign var val
 
 parseEvalHVal :: Parser HStatement
@@ -108,9 +111,8 @@ parsePrint = do
         _ <- char '('
         toPrint <- parseVals 
         _ <- char ')'
+        spaces
         return $ Print toPrint
-
-
 
 
 parseDo :: Parser HStatement
@@ -118,16 +120,27 @@ parseDo = do
    string "Do"
    spaces
    string "("
-   cond  <- try (parseVals)
+   cond  <- try (spaces *> parseVals)
    string ")->"
    spaces
-   expr  <- many (parseStatements)
-   spaces
-   string "Od" 
+   expr  <- try (spaces *> many1 parseStatements)  -- many1 $ try (spaces *> parseStatements <* spaces ) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint)))
    return $ Do cond expr
 
+parseIf :: Parser HStatement
+parseIf = do
+        string "if"
+        spaces
+        string "("
+        cond  <- try (parseVals)
+        string ")->"
+        spaces
+        expr  <- many (spaces *> parseStatements <* spaces) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint)))
+        spaces
+        string "fi"
+        return $ If cond expr
+
 parseStatements :: Parser HStatement
-parseStatements = try (parseDo) <|> try (parsePrint) <|> try (parseEvalHVal) 
+parseStatements = try (parseIf) <|> try (parseDo) <|> try (parsePrint) <|> try (parseEvalHVal) 
 
 
 

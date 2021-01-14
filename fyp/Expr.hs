@@ -23,16 +23,19 @@ instance Show HVal where show = showVal
 instance Show HStatement where show = showStatement
 
 showVal :: HVal -> String
-showVal (HInteger val)   = show val ++ "\n"
-showVal (HBool   True)   = "True\n"
-showVal (HBool  False)   = "False\n"
-showVal (HString  val)   = val ++ "\n"
-showVal (HList    val)   = "[" ++ show val ++ "]\n"
-showVal (Arith x op y)   = show x ++ " " ++ show op ++ " " ++ show y ++ "\n"
-showVal (Assign var val) = show var ++ " := " ++ show val ++ "\n"
+showVal (HInteger val)   = show val ++ " "
+showVal (HBool   True)   = "True "
+showVal (HBool  False)   = "False "
+showVal (HString  val)   = val ++ " "
+showVal (HList    val)   = "[" ++ show val ++ "] "
+showVal (Arith x op y)   = show x ++ " " ++ show op ++ " " ++ show y ++ " "
+showVal (Assign var val) = show var ++ " := " ++ show val ++ " "
 
 showStatement :: HStatement -> String
-showStatement (Eval val) = showVal val
+showStatement (Eval val)  = showVal val
+showStatement (Print val) = showVal val
+showStatement (Do cond expr) = show expr
+showStatement (If cond expr) = show $ unlines $ map (showStatement) expr
 
 evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
 evalArithmetic env (HInteger x) Add  (HInteger y) = return $ HInteger (x + y)
@@ -49,8 +52,9 @@ evalArithmetic env (HBool    x) And  (HBool y)    = return $ HBool (x && y)
 evalArithmetic env (HBool    x) Or   (HBool y)    = return $ HBool (x || y)
 evalArithmetic env (HBool    x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HBool x) op y
 ----- Variable Arithemtic -----
-evalArithmetic env (HString  x)   op   (HInteger y) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger y))
-evalArithmetic env (HInteger x)   op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
+evalArithmetic env (HString  x)  op   (HInteger y) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger y))
+evalArithmetic env (HInteger x)  op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
+evalArithmetic env (HString  x)  op   (HString  y) = getVar env x >>= (\a -> getVar env y >>= (\b -> evalArithmetic env a op b)) 
 
 evalIOVal :: IO HVal -> IO HVal
 evalIOVal val = val
@@ -75,7 +79,7 @@ evalDo env (Do cond expr) = evalVal env cond >>= \x -> case x of
                                                           HBool False -> return ()
                                                           HBool True  -> do
                                                                   traverse_ (evalStatement_ env) expr
-                                                                  evalStatement_ env $ Do cond expr
+                                                                  evalStatement_ env $ Do (HBool False) expr
 
 
 evalStatement_ :: Env -> HStatement -> IOThrowsError ()
@@ -83,14 +87,20 @@ evalStatement_ env (Do cond expr) = evalVal env cond >>= \x -> case x of
                                                                  HBool False -> return ()
                                                                  HBool True  -> do
                                                                          traverse_ (evalStatement_ env) expr
-                                                                         evalStatement_ env $ Do cond expr
+                                                                         evalStatement_ env (Do cond expr)
+
+
 evalStatement_ env (Print (HString val)) = getVar env val >>= \x -> liftIO $ putStrLn $ show x
-evalStatement_ env (Print val) = do
-                                   x <- evalVal env val
-                                   liftIO $ putStrLn $ show x 
+evalStatement_ env (Print val) = liftIO $ putStrLn $ show val
 evalStatement_ env (Eval val) = do
     result <- evalVal env val
     return ()
+
+evalStatement_ env (If cond expr) = evalVal env cond >>= \x -> case x of
+                                                                       HBool False -> return ()
+                                                                       HBool True  -> evalDo env (Do cond expr)
+                                                                    
+                                                                              
 
 evalStatement :: Env -> HStatement -> IOThrowsError HVal
 evalStatement env (Eval val)  = evalVal env val

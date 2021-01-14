@@ -1,9 +1,11 @@
 x := 1
+y := 1
 
-print(x)
+Do (y < 10)->
+        x := x * 2
+        y := y + 1 
+        print(y)
 
-Do (x < 10)->
-        x := x + 1
-Od
+Od 
 
 print(x)

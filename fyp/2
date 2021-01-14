@@ -1,0 +1,12 @@
+
+x := 1
+y := 5
+
+print(y) 
+
+Do (x < 10)->
+        x := x + 1
+Od
+
+print(y)
+print(x)

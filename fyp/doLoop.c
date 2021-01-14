@@ -3,13 +3,15 @@
 int main(void){
 
         int x = 1;
+        int y = 1;
 
-        printf("%d\n", x);
+        while (y < 10){
+                x = x * 2;
+                y = y + 1;
+                printf("%d\n", y);
 
-        while (x < 10){
-                x = x + 1;
         }
-
+        
         printf("%d\n", x);
 
         return 0;
