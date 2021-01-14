@@ -1,11 +1,10 @@
 x := 1
-if (x < 10)->
-        x := x + 1
-        y := 1
+y := 2
+
+
+if (x < 10)-> x := x + 1 
+[] (y > 10)-> y := y * 2
 fi
 
 print(x)
-
-y := x div 2
-
 print(y)

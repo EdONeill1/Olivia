@@ -24,7 +24,8 @@ data HStatement
   =  Eval   HVal
   |  Print  HVal
   |  Do     HVal [HStatement]
-  |  If     HVal [HStatement]
+  |  If     HVal [HStatement] [HStatement]
+  |  Skip   String
     deriving (Eq, Read)
 
 data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater deriving (Show, Eq, Read)
@@ -126,21 +127,25 @@ parseDo = do
    expr  <- try (spaces *> many1 parseStatements)  -- many1 $ try (spaces *> parseStatements <* spaces ) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint)))
    return $ Do cond expr
 
+parseSkip :: Parser HStatement
+parseSkip = do
+        skip <- try (spaces *> string "skip" <* spaces)
+        return $ Skip skip
+
 parseIf :: Parser HStatement
 parseIf = do
-        string "if"
+        string "if" <|> string "[]"
         spaces
         string "("
-        cond  <- try (parseVals)
+        cond  <- try (spaces *> parseVals)
         string ")->"
         spaces
-        expr  <- many (spaces *> parseStatements <* spaces) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint)))
-        spaces
-        string "fi"
-        return $ If cond expr
+        expr  <- try (spaces *> many1 parseStatements) --try (many (spaces *> parseStatements <* spaces)) <|> try (spaces *> string "[]" *> many parseIf <* spaces) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint)))
+        alt   <- try (spaces *> many parseStatements <* spaces <* try (string "end"))
+        return $ If cond expr alt
 
 parseStatements :: Parser HStatement
-parseStatements = try (parseIf) <|> try (parseDo) <|> try (parsePrint) <|> try (parseEvalHVal) 
+parseStatements = try (parseIf ) <|> try (parseDo <* spaces) <|> try (parsePrint) <|> try (parseEvalHVal) 
 
 
 
