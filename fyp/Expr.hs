@@ -35,7 +35,7 @@ showStatement :: HStatement -> String
 showStatement (Eval val)  = showVal val
 showStatement (Print val) = "\nPrint (" ++ showVal val ++ ")\n"
 showStatement (Do cond expr) = "\nDo (" ++ show cond ++ ")->\n" ++ show expr ++"\nOd"
-showStatement (If cond expr alt ) = unlines $ map (showStatement) expr
+showStatement (If cond expr  ) = unlines $ map (showStatement) expr
 
 evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
 evalArithmetic env (HInteger x) Add  (HInteger y) = return $ HInteger (x + y)
@@ -95,11 +95,12 @@ evalStatement_ env (Eval val) = do
     result <- evalVal env val
     return ()
 
-evalStatement_ env (If cond expr alt) = evalVal env cond >>= \x -> case x of
+evalStatement_ env (If cond expr) = evalVal env cond >>= \x -> case x of
                                                                        HBool False -> return ()
                                                                        HBool True  -> do
-                                                                               liftIO $ putStrLn $ show expr
-                                                                               traverse_ (evalStatement_ env) expr --evalDo env (Do cond expr)
+                                                                              -- liftIO $ putStrLn $ show expr
+                                                                               traverse_ (evalStatement_ env) expr
+                                                                              -- evalDo env (Do cond expr)
 
 
                                                                     
