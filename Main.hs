@@ -1,114 +1,63 @@
 module Main where
 
 import Parser
-import Expr hiding (Env, nullEnv)
+import Expr
 
-import Data.Char
-import System.IO
-import Data.IORef
-import Control.Monad
-import Control.Monad.Except
-import Text.ParserCombinators.Parsec hiding ( spacess, try )
 import System.Environment
-import Prelude hiding (head, tail)
-import Control.Applicative hiding ((<|>), many)
-import Text.Parsec hiding ((<|>))
+import Text.ParserCombinators.Parsec
+import Control.Monad
+import Data.List
+
+readExpr :: String -> ThrowsError HVal
+readExpr input = case parse parseVals "Olivia" input of
+                   -- Left er  -> Parser err
+                   Right val -> return val
+
+readStatement :: String -> IO [HStatement]
+readStatement input = do
+        program <- readFile input
+        case parse parseProgram "Olivia" program of
+          Left err -> fail $ show err
+          Right parsed -> return $ parsed
 
 
-type Env = IORef [(String, IORef HVal)]
+evalString :: Env -> String -> IO String
+evalString env expr = do
+        x <- readStatement expr
+        concat <$> mapM (runIOThrows . liftM show . evalStatement_ env) x
+        --mapM (runIOThrows . liftM show . evalStatement env) x 
 
-nullEnv :: IO Env
-nullEnv = newIORef []
-
------------ REPL ----------
--- https://github.com/joelchelliah/simple-repl-in-haskell
---read' :: IO String
---read' = putStr "Olivia>" >> hFlush stdout >> getLine
-
---eval' :: Env -> String -> ThrowsError ()
---eval' env input = evalStatement env
-
-eval'' :: String -> ThrowsError HVal
-eval'' input = readHVal input
---print' :: String -> IO ()
---print' = putStrLn
-
-flushStr :: String -> IO ()
-flushStr str = putStr str >> hFlush stdout
-
-readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> getLine
-
-evalStatementString :: Env -> String -> IO String
-evalStatementString env expr = runIOThrows $ liftM show $ (liftThrows $ readStatement expr) >>= evalStatement env
-
-evalHValString :: Env -> String -> IO String
-evalHValString env expr = runIOThrows $ liftM show $ (liftThrows $ readHVal expr) >>= evalHVal env
+        -- evalStatement env x
+        --map (\exprs -> runIOThrows $ liftM show $ evalStatement env exprs) x
+        --map (runIOThrows $ liftM show $ evalStatement env) x
+        --runIOThrows $ liftM show $ (evalStatement env x)   -- >>= runIOThrows $ liftM show $ evalStatement env 
 
 evalAndPrint :: Env -> String -> IO ()
-evalAndPrint env expr = evalStatementString env expr >>= putStrLn
+evalAndPrint env expr = do
+        evalString env expr
+        return ()
+                          
 
-evalAndPrint' :: Env -> String -> IO ()
-evalAndPrint' env expr = evalHValString env expr >>= putStrLn
+run :: String -> IO ()
+run expr = nullEnv >>= flip evalAndPrint expr
 
-until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
-until_ pred prompt action = do
- result <- prompt
- if pred result
-    then return ()
-    else action result >> until_ pred prompt action
-
-runOne :: String -> IO ()
-runOne expr = nullEnv >>= flip evalAndPrint' expr
-
-runRepl :: IO ()
-runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Olivia> ") . evalAndPrint'
-
-main :: IO HVal
+main :: IO ()
 main = do
- args <- getArgs
- case length args of
-   -- 0 -> runRepl
-    1 -> do
-            parseFile (args !! 0)
-   -- otherwise -> putStrLn "Program takes only 0 or 1 arguements"
+        args   <- getArgs
+        run $ args !! 0
 
---readStatement :: String -> ThrowsError HVal
---readStatement input = case parse parseExpression "Olivia" input of
---   Left err -> return $ HString $ "Error: " ++ show err
---   Right val -> return $ val
+     --   do
+     --   args <- getArgs
+     --   parsed <- parseFile (args !! 0)
+     --   nullEnv >>= flip evalStatement parsed
 
-readStatement :: String -> ThrowsError Statement
-readStatement input = case parse parseExpression "Olivia" input of
-   Right val -> return $ val
-
-readHVal :: String -> ThrowsError HVal
-readHVal input = case parse parseHVal "Olivia" input of
-                   Left  err -> return $ HString $ "Error: " ++ show err
-                   Right val -> return $ val
-
-readLines :: FilePath -> IO [String]
-readLines  =  fmap lines . readFile
-
-
---main :: IO ()
---main = do
---        expr   <- getArgs
---        evaled <- return $ liftM show $ readStatement (expr !! 0) >>= evalHVal
---        putStrLn $ extractValue $ trapError evaled
-parseFile :: String -> IO HVal
-parseFile file =  
+parseFile :: String -> IO [HStatement]
+parseFile file =
 	do program <- readFile file
-    	   case parse parseHVal "" program of
+    	   case parse parseProgram "Olivia" program of
 	  	Left  err    -> fail (show err)
-                Right parsed -> do
-                        a <- lines program
-                        return $ parsed 
-                        --return $ parsed
+		Right parsed -> return $ parsed
 
-
-
-
-
-
+parseProgram :: Parser [HStatement]
+parseProgram = spaces *> many (parseStatements <* spaces)
 

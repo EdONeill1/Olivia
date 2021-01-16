@@ -5,112 +5,37 @@ import System.IO
 import Data.IORef
 import Control.Monad
 import Control.Monad.Except
-import Text.ParserCombinators.Parsec hiding ( spacess, try )
+import Text.ParserCombinators.Parsec hiding (spacess, try)
 import System.Environment
 import Prelude hiding (head, tail)
 import Control.Applicative hiding ((<|>), many)
 import Text.Parsec hiding ((<|>))
-import Data.IORef
-
 
 data HVal
   = HInteger Integer
   | HBool    Bool
   | HString  String
   | HList    [HVal]
-  | Neg      HVal
-  | Expr     HVal  Op HVal
-  | Assign   String HVal 
-   deriving (Eq, Read)
+  | Arith    HVal Op HVal
+  | Assign   String HVal
+    deriving (Eq, Read)
 
-data Statement
-  = Do	    HVal  [HVal] 
-  | Program [HVal] [Statement]
-  deriving (Eq, Read)
+data HStatement
+  =  Eval   HVal
+  |  Print  HVal
+  |  Do     HVal [HStatement]
+  |  If     HVal [HStatement] 
+  |  Skip   String
+    deriving (Eq, Read)
 
-data Prog
-  = Atoms   [HVal]
-  | Actions [Statement]
-  deriving (Eq, Read)
-
-data Op
-  = Add | Sub | Mult | Div | Mod | And | Or | Greater | Less | GreaterEq | LessEq | Not | Equal 
-  deriving (Show, Eq, Read)
-
----------- EXPRESSION PARSERS ----------
-
-parseDo :: Parser Statement
-parseDo = do
-   char '('
-   cond  <- parseBool <|> parseExpr
-   string ")->"
-   spaces
-   expr  <- many (parseHVal)
-   spaces
-   return $ Do cond expr
+data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater deriving (Show, Eq, Read)
 
 
-
-parseVals :: Parser HVal
-parseVals = parseString <|> parseInteger <|> parseBool
-
-parseExpr :: Parser HVal
-parseExpr = do 
-        x  <- parseVals
-        spaces
-        op <- parseOp
-        spaces
-        y  <- try (char '(' *> parseExpr <* char ')') <|> parseVals
-        return $ Expr x op y
-
-
-parseAssign :: Parser HVal 
-parseAssign = do
- var <- many letter
- spaces
- _   <- string ":="
- spaces
- val <- parseHVal <|> do 
-	 		_ <- char '('
-                        z <- parseExpr
-			_ <- char ')'
-			return $ z
-
- return $ Assign var val
-
-
-parseExpression :: Parser Statement
-parseExpression = try (string "Do" *> spaces *> parseDo) 
-
-parseProgram :: Parser Statement
-parseProgram = do
-                  x <- try( spaces *> many (parseHVal <* spaces))
-                  y <- try( spaces *> many (parseExpression <* spaces))
-                  spaces
-                  return $ Program x y
-
-
-
----------- Atomic HVal Parsers ----------
-
-parseOp :: Parser Op
-parseOp = ((string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod") <|> (string "and") <|> (string "or") <|> (string ("<")) <|> (string "<=") <|>
-	   (string ">") <|> (string ">=") <|> (string "==")) >>= \x -> return $ case x of
- "+"   -> Add
- "-"   -> Sub
- "*"   -> Mult
- "div" -> Div
- "mod" -> Mod
- "and" -> And
- "or"  -> Or
- "<"   -> Less
- "<="  -> LessEq
- ">"   -> Greater
- ">="  -> GreaterEq
- "=="  -> Equal
+---------- HVal Parsers ----------
 
 parseInteger :: Parser HVal
 parseInteger = many1 digit >>= (return . HInteger . read)
+
 
 parseBool :: Parser HVal
 parseBool = f <$> (string "True" <|> string "False")
@@ -120,13 +45,112 @@ parseBool = f <$> (string "True" <|> string "False")
 
 
 parseString :: Parser HVal
-parseString = many1 (letter) >>= (return . HString) 
+parseString = many1 (letter) >>= (return . HString)
 
 
 parseList :: Parser HVal
-parseList = liftM HList $ (char '[' *> sepBy parseHVal spaces <* char ']')
+parseList = liftM HList $ (char '[' *> sepBy parseVals spaces <* char ']')
+
+parseOp :: Parser Op
+parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod") <|> (string "<") <|> (string ">"))
+  where
+    classifyOps "min" = Min
+    classifyOps "max" = Max
+    classifyOps "and" = And
+    classifyOps "or"  = Or
+    classifyOps "+"   = Add
+    classifyOps "-"   = Sub
+    classifyOps "*"   = Mult
+    classifyOps "div" = Div
+    classifyOps "mod" = Mod
+    classifyOps "<"   = Less
+    classifyOps ">"   = Greater
+
+parseArith :: Parser HVal
+parseArith = do
+        x  <- try (parseInteger) <|> try (parseBool) <|> try (parseString)
+        spaces
+        op <- parseOp
+        spaces
+        y  <- try (parseInteger) <|> try (parseBool) <|> try (parseString) <|> try (char '(' *> parseArith <* char ')')
+        spaces
+        return $ Arith x op y
+     <|>
+        do
+           op <- try (string "min.") <|> try (string "max.")
+           x  <- try (parseInteger)
+           _  <- string "."
+           y  <- try (parseInteger) <|> try (char '(' *> parseArith <* char ')') 
+           spaces
+           if op == "min." then return $ Arith x Min y else return $ Arith x Max y 
 
 
-parseHVal :: Parser HVal
-parseHVal = try (parseExpr) <|> try (parseAssign) <|> parseInteger <|> parseBool <|> parseString <|> parseList 
+parseVals :: Parser HVal
+parseVals = try (parseAssign) <|> try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString)  <|> try (parseInteger)
+
+---------- Statement Parsers ----------
+
+parseAssign :: Parser HVal
+parseAssign = do
+        var <- many letter
+        spaces
+        _   <- string ":="
+        spaces
+        val <- try (parseVals) <|> try (parseArith)
+        spaces
+        return $ Assign var val
+
+parseEvalHVal :: Parser HStatement
+parseEvalHVal = do
+        x <- try (parseVals)
+        return $ Eval x
+
+
+parsePrint :: Parser HStatement
+parsePrint = do
+        _ <- try (string "print")
+        _ <- char '('
+        toPrint <- parseVals 
+        _ <- char ')'
+        spaces
+        return $ Print toPrint
+
+
+parseDo :: Parser HStatement
+parseDo = do
+   string "Do"
+   spaces
+   string "("
+   cond  <- try (spaces *> parseVals)
+   string ")->"
+   spaces
+   expr  <- try (spaces *> many1 parseStatements)  -- many1 $ try (spaces *> parseStatements <* spaces ) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint)))
+   return $ Do cond expr
+
+parseSkip :: Parser HStatement
+parseSkip = do
+        skip <- try (spaces *> string "skip" <* spaces)
+        return $ Skip skip
+
+parseIf :: Parser HStatement
+parseIf = do
+        string "if"
+        spaces
+        string "("
+        cond  <- try (spaces *> parseVals)
+        string ")->"
+        spaces
+        expr  <- try (spaces *> many1 parseStatements) --try (many (spaces *> parseStatements <* spaces)) <|> try (spaces *> string "[]" *> many parseIf <* spaces) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint))
+        return $ If cond expr 
+
+parseStatements :: Parser HStatement
+parseStatements = try (parseIf <* spaces) <|> try (parseDo <* spaces) <|> try (parsePrint) <|> try (parseEvalHVal) 
+
+
+
+
+
+
+
+
 

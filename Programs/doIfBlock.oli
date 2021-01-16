@@ -1,0 +1,22 @@
+x := 0
+y := 44
+z := 25
+n := 0
+
+Do (n < 10)->
+
+        if (x < 5)-> x := x + 2
+                     z := z + x
+        fi
+
+        if (y > 5)-> y := y - 45
+                     z := y 
+        fi
+
+        n := n + 1
+Od
+
+
+print(x)
+print(y)
+print(z)

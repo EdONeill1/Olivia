@@ -17,61 +17,94 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Char hiding (spaces)
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
-
-type Env = IORef [(String, IORef HVal)]
+import Text.Parsec.Char
 
 instance Show HVal where show = showVal
-instance Show Statement where show = showStatement
+instance Show HStatement where show = showStatement
 
 showVal :: HVal -> String
-showVal (HInteger val)   = show val
-showVal (HBool   True)   = "True"
-showVal (HBool  False)   = "False"
-showVal (HString  val)   = val
-showVal (HList    val)   = "[" ++ show val ++ "]"
-showVal (Expr x op y )   = show x ++ " " ++ show op ++ " " ++ show y
-showVal (Assign var val) = show var ++ " := " ++ show val
+showVal (HInteger val)   = show val ++ " "
+showVal (HBool   True)   = "True "
+showVal (HBool  False)   = "False "
+showVal (HString  val)   = val ++ "\n"
+showVal (HList    val)   = "[" ++ show val ++ "] "
+showVal (Arith x op y)   = show x ++ " " ++ show op ++ " " ++ show y ++ " "
+showVal (Assign var val) = show var ++ " := " ++ show val ++ " "
 
-showStatement :: Statement -> String
-showStatement (Do cond expr)   = "Do (" ++ show cond ++ ")->" ++ show expr
-showStatement (Program x y)    = "Prog : " ++ unwords (map show x) ++ "       " ++ unwords (map show y)
+showStatement :: HStatement -> String
+showStatement (Eval val)     = showVal val
+showStatement (Print val)    = "\nPrint (" ++ showVal val ++ ")\n"
+showStatement (Do cond expr) = "\nDo (" ++ show cond ++ ")->\n" ++ show expr ++"\nOd"
+showStatement (If cond expr) = unlines $ map (showStatement) expr
 
-evalHVal :: Env -> HVal -> IOThrowsError HVal
-evalHVal env val @(HInteger _) = return $ val
-evalHVal env val @(HBool    _) = return $ val
-evalHVal env val @(HString  _) = return $ val
-evalHVal env val @(HList    _) = return $ val
-evalHVal env (Expr x op y)     = evalExpr env x op y
-evalHVal env (Assign var val)  = evalHVal env val >>= defineVar env var
+evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
+evalArithmetic env (HInteger x) Add  (HInteger y) = return $ HInteger (x + y)
+evalArithmetic env (HInteger x) Sub  (HInteger y) = return $ HInteger (x - y)
+evalArithmetic env (HInteger x) Mult (HInteger y) = return $ HInteger (x * y)
+evalArithmetic env (HInteger x) Div  (HInteger y) = return $ HInteger (x `div` y)
+evalArithmetic env (HInteger x) Mod  (HInteger y) = return $ HInteger (x `mod` y)
+evalArithmetic env (HInteger x) Max  (HInteger y) = if x > y then return $ (HInteger x) else return $ (HInteger y)
+evalArithmetic env (HInteger x) Min  (HInteger y) = if x < y then return $ (HInteger x) else return $ (HInteger y)
+evalArithmetic env (HInteger x) Less (HInteger y) = if x < y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) Greater (HInteger y) = if x > y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HInteger x) op y
+evalArithmetic env (HBool    x) And  (HBool y)    = return $ HBool (x && y)
+evalArithmetic env (HBool    x) Or   (HBool y)    = return $ HBool (x || y)
+evalArithmetic env (HBool    x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HBool x) op y
+----- Variable Arithemtic -----
+evalArithmetic env (HString  x)  op   (HInteger y) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger y))
+evalArithmetic env (HInteger x)  op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
+evalArithmetic env (HString  x)  op   (HString  y) = getVar env x >>= (\a -> getVar env y >>= (\b -> evalArithmetic env a op b)) 
 
-evalStatement :: Env -> Statement -> IOThrowsError ()
-evalStatement env (Do cond expr)   = evalDo env $ Do cond expr
+evalIOVal :: IO HVal -> IO HVal
+evalIOVal val = val
 
-evalDo :: Env -> Statement -> IOThrowsError ()
-evalDo env (Do cond expr) = evalHVal env cond >>= \x -> case x of 
+evalVal :: Env -> HVal -> IOThrowsError HVal
+evalVal env val @(HInteger _) = return $ val
+evalVal env val @(HBool    _) = return $ val
+evalVal env val @(HString  _) = return $ val
+evalVal env val @(HList    _) = return $ val
+evalVal env (Arith x op y)    = evalArithmetic env x op y
+evalVal env (Assign var val)  = evalVal env val >>= defineVar env var
+
+
+
+evalPrint :: Env -> HStatement -> IOThrowsError HVal
+evalPrint env (Print (HString val)) = getVar env val >>= \x -> evalVal env x
+                                
+
+evalDo :: Env -> HStatement -> IOThrowsError ()
+evalDo env (Do cond expr) = evalVal env cond >>= \x -> case x of 
                                                           HBool False -> return ()
                                                           HBool True  -> do
-                                                                  traverse_ (evalHVal env) expr
-                                                                  evalStatement env $ Do cond expr
+                                                                  traverse_ (evalStatement_ env) expr
+                                                                  evalStatement_ env $ Do (HBool False) expr
 
 
-evalExpr :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
-evalExpr env (HInteger x) Add  (HInteger y) = return $ HInteger (x   +   y)
-evalExpr env (HInteger x) Sub  (HInteger y) = return $ HInteger (x   -   y)
-evalExpr env (HInteger x) Mult (HInteger y) = return $ HInteger (x   *   y)
-evalExpr env (HInteger x) Div  (HInteger y) = return $ HInteger (x `div` y)
-evalExpr env (HInteger x) Mod  (HInteger y) = return $ HInteger (x `mod` y)
+evalStatement_ :: Env -> HStatement -> IOThrowsError ()
+evalStatement_ env (Do cond expr) = evalVal env cond >>= \x -> case x of
+                                                                 HBool False -> return ()
+                                                                 HBool True  -> do
+                                                                         traverse_ (evalStatement_ env) expr
+                                                                         evalStatement_ env (Do cond expr)
 
-evalExpr env (HInteger x) op (Expr x' op' y') = evalExpr env x' op' y' >>= \y -> evalExpr env (HInteger x) op y 
+evalStatement_ env (Skip skip) = return () 
+evalStatement_ env (Print (HString val)) = getVar env val >>= \x -> liftIO $ putStrLn $ show x
+evalStatement_ env (Print val) = liftIO $ putStrLn $ show val
+evalStatement_ env (Eval val) = do
+    result <- evalVal env val
+    return ()
 
-evalExpr env (HBool x) And (HBool y) = return $ HBool (x && y)
-evalExpr env (HBool x) Or  (HBool y) = return $ HBool (x || y)
+evalStatement_ env (If cond expr) = evalVal env cond >>= \x -> case x of
+                                                                     HBool False -> return ()
+                                                                     HBool True  -> traverse_ (evalStatement_ env) expr
+                                                                    
+                                                                              
 
-evalExpr env (HString x)  op       (HInteger y)    = getVar env x >>= (\a -> evalExpr env a op (HInteger y))
-evalExpr env (HInteger x) op       (HString y)     = getVar env y >>= (\a -> evalExpr env (HInteger x) op a)
-evalExpr env (HString x)  op       (HString y)     = getVar env x >>= (\a -> getVar env y >>= (\b -> evalExpr env a op b))
-evalExpr env (HString x)  op       (HBool y)       = getVar env x >>= (\a -> evalExpr env a op (HBool y))
-evalExpr env (HBool x)    op       (HString y)     = getVar env y >>= (\a -> evalExpr env (HBool x) op a)
+evalStatement :: Env -> HStatement -> IOThrowsError HVal
+evalStatement env (Eval val)  = evalVal env val
+--evalStatement env (Print val) = return $ val
+--evalStatement env (Do cond expr) = evalDo env <$> (Do cond expr)
 
 unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)
@@ -87,6 +120,7 @@ data HError = NumArgs Integer [HVal]
                | NotFunction String String
                | UnboundVar String String
                | Default String
+               | Statement String
 
 showError :: HError -> String
 showError (UnboundVar message varname)  = message ++ ": " ++ varname
@@ -97,6 +131,7 @@ showError (NumArgs expected found)      = "Expected " ++ show expected
 showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected
                                        ++ ", found " ++ show found
 showError (Parser parseErr)             = "Parse error at " ++ show parseErr
+showError (Statement statement) = "Error in statement: " ++ show statement
 
 instance Show HError where show = showError
 
@@ -108,10 +143,10 @@ trapError action = catchError action (return . show)
 
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
-
 -------------------------------
 ----- Variable Assignment -----
 -------------------------------
+type Env = IORef [(String, IORef HVal)]
 
 nullEnv :: IO Env
 nullEnv = newIORef []
@@ -155,17 +190,5 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
      where extendEnv bindings env = liftM (++ env) (mapM addBinding bindings)
            addBinding (var, value) = do ref <- newIORef value
                                         return (var, ref)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
