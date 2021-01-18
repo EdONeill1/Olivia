@@ -56,21 +56,20 @@ evalArithmetic env (HBool    x) op   (Arith x' op' y') = evalArithmetic env x' o
 evalArithmetic env (HString  x)  op   (HInteger y) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger y))
 evalArithmetic env (HInteger x)  op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
 evalArithmetic env (HString  x)  op   (HString  y) = getVar env x >>= (\a -> getVar env y >>= (\b -> evalArithmetic env a op b)) 
-evalArithmetic env (HString  x)  op   (Arith (HList x') Dot (HInteger y')) = evalArithmetic env (HList x') Dot (HInteger y') >>= \y -> evalArithmetic env (HString x) op y
-evalArithmetic env (HString  x)  op   (Arith (HList x') Dot (HString  y')) = evalArithmetic env (HList x') Dot (HString  y') >>= \y -> evalArithmetic env (HString x) op y
+
 ----- List Functionality -----
 evalArithmetic env (HList    x) Dot   (HInteger y) = evalVal env (x !! fromIntegral(y))
 evalArithmetic env (HList    x) Dot   (HString  y) = getVar env y >>= \index -> evalVal env (x !! (read y :: Int)) 
-evalArithmetic env (HString  x) Dot   (HInteger y) = getVar env x >>= \list  -> evalArithmetic env list Dot (HInteger y)
-evalArithmetic env (HString  x) Dot   (HString  y) = getVar env x >>= \list  -> evalArithmetic env list Dot (HString  y)
+
+
 
 evalVal :: Env -> HVal -> IOThrowsError HVal
-evalVal env val @(HInteger _)      = return $ val
-evalVal env val @(HBool    _)      = return $ val
-evalVal env val @(HString  _)      = return $ val
-evalVal env val @(HList    _)      = return $ val
-evalVal env (Length (HList val))   = return $ HInteger $ sum [ 1 | _ <- val]
-evalVal env (Length (HString val)) = getVar env val >>= \list -> evalVal env (Length list) 
+evalVal env val @(HInteger _) = return $ val
+evalVal env val @(HBool    _) = return $ val
+evalVal env val @(HString  _) = return $ val
+evalVal env val @(HList    _) = return $ val
+evalVal env val @(Length   _) = return $ val
+
 evalVal env (Arith x op y)    = evalArithmetic env x op y
 evalVal env (Assign var val)  = evalVal env val >>= defineVar env var
 
