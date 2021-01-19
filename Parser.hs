@@ -71,11 +71,11 @@ parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and")
 
 parseArith :: Parser HVal
 parseArith = do
-        x  <- try (parseInteger) <|> try (parseBool) <|> try (parseString)
+        x  <- try (parseLength) <|> try (parseList) <|> try (parseInteger) <|> try (parseBool) <|> try (parseString)
         spaces
         op <- parseOp
         spaces
-        y  <- try (parseLength) <|> try (parseList) <|> try (parseInteger) <|> try (parseBool) <|> try (parseString) <|> try (char '(' *> parseArith <* char ')') 
+        y  <- try (parseArith) <|> try (parseLength) <|> try (parseList) <|> try (parseInteger) <|> try (parseBool) <|> try (parseString) <|> try (char '(' *> parseArith <* char ')') 
         spaces
         return $ Arith x op y
      <|>

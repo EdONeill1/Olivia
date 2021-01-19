@@ -49,6 +49,7 @@ evalArithmetic env (HInteger x) Min  (HInteger y) = if x < y then return $ (HInt
 evalArithmetic env (HInteger x) Less (HInteger y) = if x < y then return $ (HBool True) else return $ (HBool False)
 evalArithmetic env (HInteger x) Greater (HInteger y) = if x > y then return $ (HBool True) else return $ (HBool False)
 evalArithmetic env (HInteger x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HInteger x) op y
+evalArithmetic env (HString  x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> getVar env x >>= \var -> evalArithmetic env var op y
 evalArithmetic env (HBool    x) And  (HBool y)    = return $ HBool (x && y)
 evalArithmetic env (HBool    x) Or   (HBool y)    = return $ HBool (x || y)
 evalArithmetic env (HBool    x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HBool x) op y
@@ -56,13 +57,16 @@ evalArithmetic env (HBool    x) op   (Arith x' op' y') = evalArithmetic env x' o
 evalArithmetic env (HString  x)  op   (HInteger y) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger y))
 evalArithmetic env (HInteger x)  op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
 evalArithmetic env (HString  x)  op   (HString  y) = getVar env x >>= (\a -> getVar env y >>= (\b -> evalArithmetic env a op b)) 
-evalArithmetic env (HString  x)  op   (Arith (HList x') Dot (HInteger y')) = evalArithmetic env (HList x') Dot (HInteger y') >>= \y -> evalArithmetic env (HString x) op y
-evalArithmetic env (HString  x)  op   (Arith (HList x') Dot (HString  y')) = evalArithmetic env (HList x') Dot (HString  y') >>= \y -> evalArithmetic env (HString x) op y
+-- evalArithmetic env (HString  x)  op   (Arith (HList x') Dot (HInteger y')) = getVar env x >>= \a -> evalArithmetic env (HList x') Dot (HInteger y') >>= \b -> evalArithmetic env a op b--I
+--evalArithmetic env (HString  x)  op   (Arith (HList x') Dot (HString  y')) = evalArithmetic env (HList x') Dot (HString  y') >>= \y -> evalArithmetic env (HString x) op y
 ----- List Functionality -----
 evalArithmetic env (HList    x) Dot   (HInteger y) = evalVal env (x !! fromIntegral(y))
-evalArithmetic env (HList    x) Dot   (HString  y) = getVar env y >>= \index -> evalVal env (x !! (read y :: Int)) 
-evalArithmetic env (HString  x) Dot   (HInteger y) = getVar env x >>= \list  -> evalArithmetic env list Dot (HInteger y)
-evalArithmetic env (HString  x) Dot   (HString  y) = getVar env x >>= \list  -> evalArithmetic env list Dot (HString  y)
+evalArithmetic env (HList    x) Dot   (HString  y) = getVar env y >>= (\index -> evalVal env (x !! (read y :: Int))) 
+evalArithmetic env (HInteger x) op    (Length   (HList y)) = evalArithmetic env (HInteger x) op (HInteger $ sum [1 | _ <- y])
+evalArithmetic env (HString  x) op    (Length   (HList y)) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger $ sum [1 | _ <- y]))
+evalArithmetic env (HString  x) op    (Length   (HString y)) = getVar env x >>= (\a -> evalVal env (Length (HString y)) >>= (\b -> evalArithmetic env a op b))
+evalArithmetic env (HInteger x) op    (Length   (HString y)) = evalVal env (Length (HString y)) >>= \length -> evalArithmetic env (HInteger x) op length
+--evalArithmetic env (HString  x) op    (Arith    (HList x') op' (HInteger y')) = evalArithmetic env (HList x') op' (HInteger y') >>= \index -> evalArithmetic env (HString x) op index
 
 evalVal :: Env -> HVal -> IOThrowsError HVal
 evalVal env val @(HInteger _)      = return $ val

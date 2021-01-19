@@ -4,9 +4,10 @@ N := len(f)
 r := 0
 
 Do (n < N)->
-        s := f.n
-        r := r + s
+
+        r := r + f.n
         n := n + 1
+
 Od
 
 print(r)
