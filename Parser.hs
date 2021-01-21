@@ -21,6 +21,7 @@ data HVal
   | Assign   String HVal
     deriving (Eq, Read)
 
+
 data HStatement
   =  Eval   HVal
   |  Print  HVal
@@ -28,6 +29,7 @@ data HStatement
   |  If     HVal [HStatement] 
   |  Skip   String
     deriving (Eq, Read)
+
 
 data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater | Dot deriving (Show, Eq, Read)
 
@@ -39,10 +41,10 @@ parseInteger = many1 digit >>= (return . HInteger . read)
 
 
 parseBool :: Parser HVal
-parseBool = f <$> (string "True" <|> string "False")
+parseBool = classifyBool <$> (string "True" <|> string "False")
   where
-    f "True"  = HBool True
-    f "False" = HBool False
+    classifyBool "True"  = HBool True
+    classifyBool "False" = HBool False
 
 
 parseString :: Parser HVal
@@ -51,6 +53,7 @@ parseString = many1 (letter) >>= (return . HString)
 
 parseList :: Parser HVal
 parseList = liftM HList $ (char '[' *> sepBy parseVals spaces <* char ']')
+
 
 parseOp :: Parser Op
 parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod") <|> (string "<") <|> (string ">") <|> (string "."))
@@ -86,15 +89,15 @@ parseArith = do
            y  <- try (parseInteger) <|> try (char '(' *> parseArith <* char ')') 
            spaces
            if op == "min." then return $ Arith x Min y else return $ Arith x Max y 
-     <|>
-        do
-           x  <- try (parseList) <|> try (parseString)
-           spaces
-           op <- parseOp
-           spaces
-           y  <- try (parseInteger) <|> try (parseString)
-           spaces
-           return $ Arith x op y
+     -- <|>
+     --   do
+     --      x  <- try (parseList) <|> try (parseString)
+     --      spaces
+     --      op <- parseOp
+     --      spaces
+     --      y  <- try (parseInteger) <|> try (parseString)
+     --      spaces
+     --      return $ Arith x op y
 
 parseLength :: Parser HVal
 parseLength = do
@@ -102,6 +105,7 @@ parseLength = do
         x <- try (parseList) <|> try (parseString)
         string ")"
         return $ Length x
+
 
 parseVals :: Parser HVal
 parseVals = try (parseLength) <|> try (parseAssign) <|> try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString) <|> try (parseInteger)
@@ -117,6 +121,7 @@ parseAssign = do
         val <- try (parseVals) <|> try (parseArith) 
         spaces
         return $ Assign var val
+
 
 parseEvalHVal :: Parser HStatement
 parseEvalHVal = do
@@ -142,13 +147,15 @@ parseDo = do
    cond  <- try (spaces *> parseVals)
    string ")->"
    spaces
-   expr  <- try (spaces *> many1 parseStatements)  -- many1 $ try (spaces *> parseStatements <* spaces ) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint)))
+   expr  <- try (spaces *> many1 parseStatements) 
    return $ Do cond expr
+
 
 parseSkip :: Parser HStatement
 parseSkip = do
         skip <- try (spaces *> string "skip" <* spaces)
         return $ Skip skip
+
 
 parseIf :: Parser HStatement
 parseIf = do
@@ -158,8 +165,9 @@ parseIf = do
         cond  <- try (spaces *> parseVals)
         string ")->"
         spaces
-        expr  <- try (spaces *> many1 parseStatements) --try (many (spaces *> parseStatements <* spaces)) <|> try (spaces *> string "[]" *> many parseIf <* spaces) -- (try (many1 (parseEvalHVal))) <|> (try (many1 (parsePrint))
+        expr  <- try (spaces *> many1 parseStatements)
         return $ If cond expr 
+
 
 parseStatements :: Parser HStatement
 parseStatements = try (parseIf <* spaces) <|> try (parseDo <* spaces) <|> try (parsePrint) <|> try (parseEvalHVal) 
