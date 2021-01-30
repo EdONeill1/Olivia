@@ -37,7 +37,7 @@ showStatement :: HStatement -> String
 showStatement (Eval val)     = showVal val
 showStatement (Print val)    = "\nPrint (" ++ showVal val ++ ")\n"
 showStatement (Do cond expr) = "\nDo (" ++ show cond ++ ")->\n" ++ show expr ++"\nOd"
-showStatement (If cond expr) = unlines $ map (showStatement) expr
+showStatement (If (cond, expr)) = unlines $ map (showStatement) expr
 
 
 evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
@@ -84,12 +84,6 @@ evalPrint :: Env -> HStatement -> IOThrowsError HVal
 evalPrint env (Print (HString val)) = getVar env val >>= \x -> evalVal env x
                                 
 
-evalDo :: Env -> HStatement -> IOThrowsError ()
-evalDo env (Do cond expr) = evalVal env cond >>= \x -> case x of 
-                                                          HBool False -> return ()
-                                                          HBool True  -> do
-                                                                  traverse_ (evalStatement_ env) expr
-                                                                  evalStatement_ env $ Do (HBool False) expr
 
 
 evalStatement_ :: Env -> HStatement -> IOThrowsError ()
@@ -105,7 +99,7 @@ evalStatement_ env (Print val) = evalVal env val >>= \x -> liftIO $ putStrLn $ s
 evalStatement_ env (Eval val) = do
     result <- evalVal env val
     return ()
-evalStatement_ env (If cond expr) = evalVal env cond >>= \x -> case x of
+evalStatement_ env (If (cond, expr)) = evalVal env cond >>= \x -> case x of
                                                                      HBool False -> return ()
                                                                      HBool True  -> traverse_ (evalStatement_ env) expr
 

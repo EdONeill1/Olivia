@@ -19,6 +19,7 @@ readStatement input = do
 evalString :: Env -> String -> IO String
 evalString env expr = do
         x <- readStatement expr
+--        putStrLn $ show x
         concat <$> mapM (runIOThrows . liftM show . evalStatement_ env) x
 
 evalAndPrint :: Env -> String -> IO ()

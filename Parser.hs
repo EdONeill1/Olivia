@@ -26,7 +26,8 @@ data HStatement
   =  Eval   HVal
   |  Print  HVal
   |  Do     HVal [HStatement]
-  |  If     HVal [HStatement] 
+  |  If     (HVal, [HStatement]) 
+  |  Selection [HStatement]
   |  Skip   String
     deriving (Eq, Read)
 
@@ -141,13 +142,13 @@ parsePrint = do
 
 parseDo :: Parser HStatement
 parseDo = do
-   string "Do"
+   _ <- try (string "Do")
    spaces
-   string "("
+   _ <- try (string "(")
    cond  <- try (spaces *> parseVals)
-   string ")->"
-   spaces
-   expr  <- try (spaces *> many1 parseStatements) 
+   _ <- try (string ")->") *> spaces
+   expr  <- many1 $ try (parseEvalHVal) --try (spaces *> many1 parseEvalHVal)
+   --_ <- try (string "Od")
    return $ Do cond expr
 
 
@@ -166,11 +167,11 @@ parseIf = do
         string ")->"
         spaces
         expr  <- try (spaces *> many1 parseStatements)
-        return $ If cond expr 
+        return $ If (cond, expr) 
 
 
 parseStatements :: Parser HStatement
-parseStatements = try (parseIf <* spaces) <|> try (parseDo <* spaces) <|> try (parsePrint) <|> try (parseEvalHVal) 
+parseStatements = try (parseDo) <|> try (parsePrint) <|> try (parseEvalHVal <* spaces) 
 
 
 
