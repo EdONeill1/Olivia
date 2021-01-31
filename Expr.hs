@@ -38,24 +38,28 @@ showStatement (Eval val)     = showVal val
 showStatement (Print val)    = "\nPrint (" ++ showVal val ++ ")\n"
 showStatement (Do cond expr) = "\nDo (" ++ show cond ++ ")->\n" ++ show expr ++"\nOd"
 showStatement (If (cond, expr)) = unlines $ map (showStatement) expr
-
+showStatement (Selection if_ selection fi_) = unlines $ map (showStatement) selection
 
 evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
-evalArithmetic env (HInteger x) Add  (HInteger y)      = return $ HInteger (x + y)
-evalArithmetic env (HInteger x) Sub  (HInteger y)      = return $ HInteger (x - y)
-evalArithmetic env (HInteger x) Mult (HInteger y)      = return $ HInteger (x * y)
-evalArithmetic env (HInteger x) Div  (HInteger y)      = return $ HInteger (x `div` y)
-evalArithmetic env (HInteger x) Mod  (HInteger y)      = return $ HInteger (x `mod` y)
-evalArithmetic env (HInteger x) Max  (HInteger y)      = if x > y then return $ (HInteger x) else return $ (HInteger y)
-evalArithmetic env (HInteger x) Min  (HInteger y)      = if x < y then return $ (HInteger x) else return $ (HInteger y)
-evalArithmetic env (HInteger x) Less (HInteger y)      = if x < y then return $ (HBool True) else return $ (HBool False)
-evalArithmetic env (HInteger x) Greater (HInteger y)   = if x > y then return $ (HBool True) else return $ (HBool False)
-evalArithmetic env (HInteger x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HInteger x) op y
-evalArithmetic env (HString  x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> getVar env x >>= \var -> evalArithmetic env var op y
-evalArithmetic env (HBool    x) And  (HBool y)         = return $ HBool (x && y)
-evalArithmetic env (HBool    x) Or   (HBool y)         = return $ HBool (x || y)
-evalArithmetic env (HBool    x) op   (Arith x' op' y') = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HBool x) op y
-
+evalArithmetic env (HInteger x) Add  (HInteger y)        = return $ HInteger (x + y)
+evalArithmetic env (HInteger x) Sub  (HInteger y)        = return $ HInteger (x - y)
+evalArithmetic env (HInteger x) Mult (HInteger y)        = return $ HInteger (x * y)
+evalArithmetic env (HInteger x) Div  (HInteger y)        = return $ HInteger (x `div` y)
+evalArithmetic env (HInteger x) Mod  (HInteger y)        = return $ HInteger (x `mod` y)
+evalArithmetic env (HInteger x) Max  (HInteger y)        = if x > y then return $ (HInteger x) else return $ (HInteger y)
+evalArithmetic env (HInteger x) Min  (HInteger y)        = if x < y then return $ (HInteger x) else return $ (HInteger y)
+evalArithmetic env (HInteger x) Less (HInteger y)        = if x < y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) Greater (HInteger y)     = if x > y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) op   (Arith x' op' y')   = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HInteger x) op y
+evalArithmetic env (Arith x' op' y') op (HInteger y)     = evalArithmetic env x' op' y' >>= \x -> evalArithmetic env x op (HInteger y)
+evalArithmetic env (HString  x) op   (Arith x' op' y')   = evalArithmetic env x' op' y' >>= \y -> getVar env x >>= \var -> evalArithmetic env var op y
+evalArithmetic env (Arith x' op' y') op (HString y)      = evalArithmetic env x' op' y' >>= \x -> getVar env y >>= \var -> evalArithmetic env x op var
+evalArithmetic env (HBool    x) And  (HBool y)           = return $ HBool (x && y)
+evalArithmetic env (HBool    x) Or   (HBool y)           = return $ HBool (x || y)
+evalArithmetic env (HBool    x) op   (Arith x' op' y')   = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HBool x) op y
+evalArithmetic env (HInteger x) Equals (HInteger y)      = if (HInteger x) == (HInteger y) then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HString  x) Equals (HInteger y)      = getVar env x >>= \var -> if var == (HInteger y) then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) Equals (HString  y)      = getVar env y >>= \var -> if (HInteger x) == var then return $ (HBool True) else return $ (HBool False)
 ----- Variable Arithemtic -----
 evalArithmetic env (HString  x)  op   (HInteger y) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger y))
 evalArithmetic env (HInteger x)  op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
@@ -102,6 +106,9 @@ evalStatement_ env (Eval val) = do
 evalStatement_ env (If (cond, expr)) = evalVal env cond >>= \x -> case x of
                                                                      HBool False -> return ()
                                                                      HBool True  -> traverse_ (evalStatement_ env) expr
+evalStatement_ env (Selection if_ selection fi_) = do
+        liftIO $ putStrLn $ show selection
+        traverse_ (evalStatement_ env) selection
 
 unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)

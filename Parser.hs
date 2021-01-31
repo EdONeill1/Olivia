@@ -27,12 +27,12 @@ data HStatement
   |  Print  HVal
   |  Do     HVal [HStatement]
   |  If     (HVal, [HStatement]) 
-  |  Selection [HStatement]
+  |  Selection String [HStatement] String
   |  Skip   String
     deriving (Eq, Read)
 
 
-data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater | Dot deriving (Show, Eq, Read)
+data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater | Dot | Equals deriving (Show, Eq, Read)
 
 
 ---------- HVal Parsers ----------
@@ -57,7 +57,7 @@ parseList = liftM HList $ (char '[' *> sepBy parseVals spaces <* char ']')
 
 
 parseOp :: Parser Op
-parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "mod") <|> (string "<") <|> (string ">") <|> (string "."))
+parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "%") <|> (string "<") <|> (string ">") <|> (string ".") <|> (string "="))
   where
     classifyOps "min" = Min
     classifyOps "max" = Max
@@ -67,15 +67,16 @@ parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and")
     classifyOps "-"   = Sub
     classifyOps "*"   = Mult
     classifyOps "div" = Div
-    classifyOps "mod" = Mod
+    classifyOps "%" = Mod
     classifyOps "<"   = Less
     classifyOps ">"   = Greater
     classifyOps "."   = Dot
+    classifyOps "="   = Equals
 
 
 parseArith :: Parser HVal
 parseArith = do
-        x  <- try (parseLength) <|> try (parseList) <|> try (parseInteger) <|> try (parseBool) <|> try (parseString)
+        x  <-  try (char '(' *> parseArith <* char ')') <|> try (parseLength) <|> try (parseList) <|> try (parseInteger) <|> try (parseBool) <|> try (parseString)
         spaces
         op <- parseOp
         spaces
@@ -105,12 +106,14 @@ parseLength = do
         string "len("
         x <- try (parseList) <|> try (parseString)
         string ")"
+        spaces
         return $ Length x
 
 
 parseVals :: Parser HVal
 parseVals = try (parseLength) <|> try (parseAssign) <|> try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString) <|> try (parseInteger)
 
+p = try (parseAssign) <|> try (parseArith)
 ---------- Statement Parsers ----------
 
 parseAssign :: Parser HVal
@@ -126,7 +129,8 @@ parseAssign = do
 
 parseEvalHVal :: Parser HStatement
 parseEvalHVal = do
-        x <- try (parseVals)
+        x <- try p
+        spaces
         return $ Eval x
 
 
@@ -142,14 +146,24 @@ parsePrint = do
 
 parseDo :: Parser HStatement
 parseDo = do
-   _ <- try (string "Do")
-   spaces
-   _ <- try (string "(")
-   cond  <- try (spaces *> parseVals)
-   _ <- try (string ")->") *> spaces
-   expr  <- many1 $ try (parseEvalHVal) --try (spaces *> many1 parseEvalHVal)
+     _ <- string "Do"
+     spaces
+     _ <- string "("
+     p <- parseArith
+     _ <- string ")->"
+     spaces
+     q <- many1 $ parseStatements
+     spaces
+     --_ <- string "Od"
+     return $ Do p q
+   --_ <- try (string "Do")
+   --spaces
+   --_ <- try (string "(")
+   --cond  <- try (spaces *> parseVals)
+   --_ <- try (string ")->") *> spaces
+   --expr  <- many1 $ try (parseSelection <* spaces) <|> (parseEvalHVal) --try (spaces *> many1 parseEvalHVal)
    --_ <- try (string "Od")
-   return $ Do cond expr
+   --return $ Do cond expr
 
 
 parseSkip :: Parser HStatement
@@ -158,20 +172,32 @@ parseSkip = do
         return $ Skip skip
 
 
+parseVal = string "<" *> spaces *> parseStatements <* spaces <* string ">"
+
+
 parseIf :: Parser HStatement
 parseIf = do
-        string "if"
-        spaces
         string "("
-        cond  <- try (spaces *> parseVals)
+        cond  <- parseArith
         string ")->"
         spaces
-        expr  <- try (spaces *> many1 parseStatements)
+        expr  <- many1 $ parseStatements 
+        spaces
         return $ If (cond, expr) 
 
 
+parseSelection :: Parser HStatement
+parseSelection = do
+        if_ <- string "if"
+        spaces
+        selection <- many1 $ parseIf
+        spaces
+        fi_ <- string "fi"
+        spaces
+        return $ Selection if_ selection fi_
+
 parseStatements :: Parser HStatement
-parseStatements = try (parseDo) <|> try (parsePrint) <|> try (parseEvalHVal <* spaces) 
+parseStatements = try (parsePrint) <|> try (parseEvalHVal) <|> try (parseDo) <|> try (parseSelection) 
 
 
 

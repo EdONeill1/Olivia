@@ -1,0 +1,38 @@
+a := 4 Mod 2
+print(a)
+x := 0
+n := 0
+f := [1 2 3 4 5 6 7 8 9 10]
+N := len(f)
+
+Do (n < N)->
+        n := n + 1
+Od
+
+print(n)
+x := 0
+
+Do (n < 20)->
+        n := n + 1
+        x := x + n
+Od
+
+print(n)
+print(x)
+
+if (x > n)-> m := 1
+[] (x < n)-> print(4321)
+fi
+
+c := 2
+
+Do (m < 10)->
+        if ((f.c div m) < 4)-> m := 125
+        [] ((f.c div m) > 4)-> m := m + 1
+        fi
+        m := m + 1
+        
+Od
+
+print(m)
+
