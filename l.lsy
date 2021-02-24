@@ -1,0 +1,17 @@
+
+f := [1 2 3 4 5 6 7 8 9 10]
+x := 0
+n := 0
+N := len(f)
+
+Do (n < N)->
+
+        if ((f.n div 2) > 4)-> x := x + f.n
+           ((f.n div 2) < 4)-> x := x + 0
+        fi
+        
+        n := n + 1
+
+Od
+
+print(x)
