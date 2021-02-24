@@ -33,7 +33,29 @@ data HStatement
     deriving (Eq, Read)
 
 
+data HFunction = HFunction HVal HVal [HStatement] deriving (Eq, Read)
+
 data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater | Dot | Equals | NEquals deriving (Show, Eq, Read)
+
+
+---------- HFunction Parser ----------
+-- A function is denoted by it's name, a list of params, and then a list of HStatements which operate upon the params
+parseHFunction :: Parser HFunction
+parseHFunction = do
+       _        <- try (string "def")
+       spaces
+       funcName <- parseString
+       spaces
+       _        <- try (string "(")
+       spaces
+       params   <- parseList
+       spaces
+       _        <- try (string ")->")
+       spaces
+       funcBody <-  many1 $ parseStatements
+       spaces
+       _        <- try (string "end")
+       return $ HFunction funcName params funcBody
 
 
 ---------- HVal Parsers ----------
@@ -200,7 +222,6 @@ parseSelection = do
 
 parseStatements :: Parser HStatement
 parseStatements = try (parsePrint) <|> try (parseEvalHVal) <|> try (parseDo) <|> try (parseSelection) 
-
 
 
 
