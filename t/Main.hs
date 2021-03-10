@@ -7,7 +7,6 @@ import System.Environment
 import Text.ParserCombinators.Parsec
 import Control.Monad
 import Data.List
-import Control.Concurrent.Async
 
 readStatement :: String -> IO [HStatement]
 readStatement input = do

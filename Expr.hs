@@ -19,16 +19,16 @@ import Text.ParserCombinators.Parsec.Char hiding (spaces)
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import Text.Parsec.Char
+import Control.Concurrent.Async
 
 instance Show HVal where show = showVal
 instance Show HStatement where show = showStatement
-instance Show HFunction where show = showFunction
 
 showVal :: HVal -> String
 showVal (HInteger val)      = show val ++ " "
 showVal (HBool   True)      = "True "
 showVal (HBool  False)      = "False "
-showVal (HString  val)      = val
+showVal (HString  val)      = val ++ " "
 showVal (HList    val)      = show val
 showVal (Arith x op y)      = show x ++ " " ++ show op ++ " " ++ show y ++ " "
 showVal (Assign var val)    = show var ++ " := " ++ show val ++ " "
@@ -41,10 +41,6 @@ showStatement (Print val)    = "\nPrint (" ++ showVal val ++ ")\n"
 showStatement (Do cond expr) = "\nDo (" ++ show cond ++ ")->\n" ++ show expr ++"\nOd"
 showStatement (If (cond, expr)) = unlines $ map (showStatement) expr
 showStatement (Selection if_ selection fi_) = unlines $ map (showStatement) selection
-
-
-showFunction :: HFunction -> String
-showFunction (HFunction name params body) = "def " ++ show name ++ "(" ++ show params ++ ")->\n" ++ (showStatement) (body !! 0) ++ "\nend"
 
 evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
 evalArithmetic env (HInteger x) Add  (HInteger y)        = return $ HInteger (x + y)

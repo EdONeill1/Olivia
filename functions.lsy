@@ -1,0 +1,4 @@
+foo = 1
+def foo ([1 2 3])->
+        x + y
+end
