@@ -28,7 +28,8 @@ data HStatement
   |  Print  HVal
   |  Do     HVal [HStatement]
   |  If     (HVal, [HStatement]) 
-  |  Selection String [HStatement] String
+  |  Selection String [HStatement] String Int
+  |  S [(HVal, [HStatement])]
   |  Skip   String
   |  HFunction String HVal HStatement
     deriving (Eq, Read)
@@ -204,6 +205,14 @@ parseIf = do
         spaces
         return $ If (cond, expr) 
 
+parseS :: Parser [HStatement]
+parseS = many (do
+        spaces
+        x <- parseVals
+        spaces
+        y <- many1 $ parseStatements
+        spaces
+        return $ S [(x, y)])
 
 parseSelection :: Parser HStatement
 parseSelection = do
@@ -213,7 +222,7 @@ parseSelection = do
         spaces
         fi_ <- string "fi"
         spaces
-        return $ Selection if_ selection fi_
+        return $ Selection if_ selection fi_ (length selection)
 
 parseStatements :: Parser HStatement
 parseStatements = try (parseHFunction) <|> try (parsePrint) <|> try (parseEvalHVal) <|> try (parseDo) <|> try (parseSelection) 

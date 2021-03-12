@@ -8,6 +8,7 @@ import Text.ParserCombinators.Parsec
 import Control.Monad
 import Data.List
 import Control.Concurrent.Async
+import Data.Traversable
 
 readStatement :: String -> IO [HStatement]
 readStatement input = do
@@ -21,7 +22,7 @@ evalString :: Env -> String -> IO String
 evalString env expr = do
         x <- readStatement expr
 --        putStrLn $ show x
-        concat <$> mapM (runIOThrows . liftM show . evalStatement_ env) x
+        concat <$> traverse (runIOThrows . liftM show . evalStatement_ env) x
 
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr = do

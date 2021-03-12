@@ -1,0 +1,16 @@
+
+q1 = 10
+q2 = 5
+q3 = 123
+q4 = 22
+n := 0
+
+
+q1 := q2
+q2 := q1
+
+print(q1)
+print(q2)
+print(q3)
+print(q4)
+

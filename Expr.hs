@@ -2,10 +2,13 @@ module Expr where
 
 import Parser
 
-
+import Data.Monoid (Alt(..))
+import Data.Coerce (coerce)
 import System.Exit
 import Data.Foldable
 import Data.List
+import System.IO.Unsafe (unsafePerformIO)
+import System.Random
 import System.Environment
 import System.IO
 import Prelude hiding (tail)
@@ -40,7 +43,7 @@ showStatement (Eval val)     = showVal val
 showStatement (Print val)    = "\nPrint (" ++ showVal val ++ ")\n"
 showStatement (Do cond expr) = "\nDo (" ++ show cond ++ ")->\n" ++ show expr ++"\nOd"
 showStatement (If (cond, expr)) = unlines $ map (showStatement) expr
-showStatement (Selection if_ selection fi_) = unlines $ map (showStatement) selection
+showStatement (Selection if_ selection fi_ n) = unlines $ map (showStatement) selection
 
 evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
 evalArithmetic env (HInteger x) Add  (HInteger y)        = return $ HInteger (x + y)
@@ -115,7 +118,6 @@ evalPrint env (Print (HString val)) = getVar env val >>= \x -> evalVal env x
                                 
 
 
-
 evalStatement_ :: Env -> HStatement -> IOThrowsError ()
 evalStatement_ env (Do cond expr) = evalVal env cond >>= \x -> case x of
                                                                  HBool False -> return ()
@@ -131,13 +133,68 @@ evalStatement_ env (Eval val) = do
     return ()
 evalStatement_ env (If (cond, expr)) = evalVal env cond >>= \x -> case x of
                                                                      HBool False -> return ()
-                                                                     HBool True  -> traverse_ (evalStatement_ env) expr
-evalStatement_ env (Selection if_ selection fi_) = do
-        traverse_ (evalStatement_ env) selection
+                                                                     HBool True  -> do
+                                                                             traverse_ (evalStatement_ env) expr
+                                                                             return ()
+                                                                     
+evalStatement_ env (Selection if_ selection fi_ n) = evalS env (Selection if_ selection fi_ n) (selection !! randIdx n)
+        --xs <- mapM (evalS env) selection
+        --traverse_ (evalStatement_ env) xs
+        --traverse_ (evalStatement_ env) xs
+        
+        --traverse_ (evalStatement_ env) gs --(mapM (evalS env) selection)
+        --return ()--evalStatement_ env (selection !! randIdx n) >>= \res -> case res of
+                                                       --                                                        () -> evalStatement_ env (Selection if_ (delete (selection !! randIdx n) selection) fi_ n)
+                                                         --                                                      otherwise -> k
+                                                                                                  
+                                                                                                
+        
+        --traverse_ (evalStatement_ env) selection
+        --
+evalS env (Selection if_ selection fi_ n) (If (cond, expr)) = evalVal env cond >>= \x -> case x of
+                                                           HBool False -> evalStatement_ env (Selection if_ selection fi_ n)
+                                                           HBool True  -> evalStatement_ env (If (cond, expr)) 
+
+randIdx :: Int -> Int
+randIdx n = do
+        unsafePerformIO (getStdRandom (randomR (0, n - 1)))
+        --[fromIntegral $ fst $ randomR (0, n) (mkStdGen 12345) | x <- [0..n]] !! 0
+        
+       
+
+f :: IO HVal -> IO Bool
+f n = do
+        x <- n
+        case x of
+          HBool True -> return $ True
+          HBool False -> return $ False
+
+
+
+
+
+
+        
+
+--evalCond :: Env -> HVal -> IOThrowsError String
+--evalCond env cond = evalVal env cond >>= \x -> extractValue (evalVal env x)
+
+--obtainTrueBranches :: Env -> [HStatement] -> IOThrowsError String
+--obtainTrueBranches env (If (cond, expr) : gs) = evalCond env cond
+
 
 unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)
 
+a1 :: IO Int
+a1 = do
+        return $ product [1..10]
+
+raceAll :: [IO a] -> IO a
+raceAll = runConcurrently . asum . map Concurrently
+--filterBranches env (Selection if_ seleciton fi_) = filter (\command ->  evalStatement_ env command) seleciton
+
+--buildBranches env (Selection if_ seleciton fi_) = undefined
 --------------------------------------------------------------
              ------ Error Handling -----
 --------------------------------------------------------------
@@ -150,6 +207,7 @@ data HError = NumArgs Integer [HVal]
                | UnboundVar String String
                | Default String
                | Statement String
+
 
 showError :: HError -> String
 showError (UnboundVar stmt var)         = stmt ++ ":" ++ var

@@ -55,6 +55,17 @@
   (major1) == 3 && (major2) == 1 && (minor) <= 14)
 #endif /* MIN_VERSION_parsec */
 
+/* package random-1.2.0 */
+#ifndef VERSION_random
+#define VERSION_random "1.2.0"
+#endif /* VERSION_random */
+#ifndef MIN_VERSION_random
+#define MIN_VERSION_random(major1,major2,minor) (\
+  (major1) <  1 || \
+  (major1) == 1 && (major2) <  2 || \
+  (major1) == 1 && (major2) == 2 && (minor) <= 0)
+#endif /* MIN_VERSION_random */
+
 /* tool gcc-10.0.1 */
 #ifndef TOOL_VERSION_gcc
 #define TOOL_VERSION_gcc "10.0.1"
