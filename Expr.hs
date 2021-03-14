@@ -89,7 +89,7 @@ evalArithmetic env (HString  x)  op   (HInteger y) = getVar env x >>= (\a -> eva
 evalArithmetic env (HInteger x)  op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
 evalArithmetic env (HString  x)  op   (HString  y) = getVar env x >>= (\a -> getVar env y >>= (\b -> evalArithmetic env a op b)) 
 
------ List Functionality -----
+----- List Functionality ----- NOT YET CERTAIIN IF COMMENTED CODE IS NEEDED WITHIN CODEBASE
 --evalArithmetic env (HList    x) Dot   (HInteger y)           = return $ x !! fromIntegral(y) 
 --evalArithmetic env (HList    x) Dot   (HString  y)           = getVar env y >>= (\index -> evalVal env $ Arith (HList x) Dot index)
 --evalArithmetic env (HInteger x) Dot   (HInteger y)           = return $ HInteger 0
@@ -98,9 +98,6 @@ evalArithmetic env (HString  x) op    (Length   (HList y))   = getVar env x >>= 
 evalArithmetic env (HString  x) op    (Length   (HString y)) = getVar env x >>= (\a -> evalVal env (Length (HString y)) >>= (\b -> evalArithmetic env a op b))
 evalArithmetic env (HInteger x) op    (Length   (HString y)) = evalVal env (Length (HString y)) >>= \length -> evalArithmetic env (HInteger x) op length
 --evalArithmetic env (Arith (HList xs) Dot (HInteger ys)) op (HInteger y) = evalArithmetic env (HList xs) Dot (HInteger ys) >>= \i -> evalArithmetic env i op (HInteger y) 
-evalArithmetic env (ListAccess (HList xs) (HInteger y)) Div (HInteger z) = do
-        liftIO $ putStrLn $ show "IN FUNCTION"
-        return $ HInteger 5
 
 evalVal :: Env -> HVal -> IOThrowsError HVal
 evalVal env val @(HInteger _)      = return $ val
@@ -112,11 +109,6 @@ evalVal env (Length (HString val)) = getVar env val >>= \list -> evalVal env (Le
 evalVal env (Arith x op y)         = evalArithmetic env x op y
 evalVal env (Assign var val)       = evalVal env val >>= defineVar env var
 evalVal env (ListAccess (HList xs) (HInteger y)) = return $ xs !! fromIntegral(y)
-
-evalPrint :: Env -> HStatement -> IOThrowsError HVal
-evalPrint env (Print (HString val)) = getVar env val >>= \x -> evalVal env x
-                                
-
 
 evalStatement_ :: Env -> HStatement -> IOThrowsError ()
 evalStatement_ env (Do cond expr) = evalVal env cond >>= \x -> case x of
@@ -137,64 +129,27 @@ evalStatement_ env (If (cond, expr)) = evalVal env cond >>= \x -> case x of
                                                                              traverse_ (evalStatement_ env) expr
                                                                              return ()
                                                                      
-evalStatement_ env (Selection if_ selection fi_ n) = evalS env (Selection if_ selection fi_ n) (selection !! randIdx n)
-        --xs <- mapM (evalS env) selection
-        --traverse_ (evalStatement_ env) xs
-        --traverse_ (evalStatement_ env) xs
-        
-        --traverse_ (evalStatement_ env) gs --(mapM (evalS env) selection)
-        --return ()--evalStatement_ env (selection !! randIdx n) >>= \res -> case res of
-                                                       --                                                        () -> evalStatement_ env (Selection if_ (delete (selection !! randIdx n) selection) fi_ n)
-                                                         --                                                      otherwise -> k
-                                                                                                  
-                                                                                                
-        
-        --traverse_ (evalStatement_ env) selection
-        --
+evalStatement_ env (Selection if_ selection fi_ n) = evalS env (Selection if_ selection fi_ n) (selection !! randIdx n) -- Determinism: traverse_ (evalStatement_ env) selection
+
+-- HELPER FUNCTION FOR SELECTION EVALUATION
 evalS env (Selection if_ selection fi_ n) (If (cond, expr)) = evalVal env cond >>= \x -> case x of
                                                            HBool False -> evalStatement_ env (Selection if_ selection fi_ n)
                                                            HBool True  -> evalStatement_ env (If (cond, expr)) 
 
 randIdx :: Int -> Int
-randIdx n = do
-        unsafePerformIO (getStdRandom (randomR (0, n - 1)))
-        --[fromIntegral $ fst $ randomR (0, n) (mkStdGen 12345) | x <- [0..n]] !! 0
-        
-       
-
-f :: IO HVal -> IO Bool
-f n = do
-        x <- n
-        case x of
-          HBool True -> return $ True
-          HBool False -> return $ False
-
-
-
-
-
-
-        
-
---evalCond :: Env -> HVal -> IOThrowsError String
---evalCond env cond = evalVal env cond >>= \x -> extractValue (evalVal env x)
-
---obtainTrueBranches :: Env -> [HStatement] -> IOThrowsError String
---obtainTrueBranches env (If (cond, expr) : gs) = evalCond env cond
-
+randIdx n = unsafePerformIO (getStdRandom (randomR (0, n - 1)))
 
 unravel :: [HVal] -> String
 unravel list = unwords (map showVal list)
 
-a1 :: IO Int
-a1 = do
-        return $ product [1..10]
 
-raceAll :: [IO a] -> IO a
-raceAll = runConcurrently . asum . map Concurrently
---filterBranches env (Selection if_ seleciton fi_) = filter (\command ->  evalStatement_ env command) seleciton
+--------------------------------------------------------------
+        
+        -- ERROR HANDLING AND VARIABLE ASSIGNMENT WAS BASED ON AND INSPIRED BY THE WIKIBOOK WRITE YOURSELF A SCHEME IN 48 HOURS --
+        -- https://upload.wikimedia.org/wikipedia/commons/a/aa/Write_Yourself_a_Scheme_in_48_Hours.pdf --
 
---buildBranches env (Selection if_ seleciton fi_) = undefined
+-------------------------------------------------------------
+
 --------------------------------------------------------------
              ------ Error Handling -----
 --------------------------------------------------------------

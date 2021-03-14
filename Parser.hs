@@ -104,6 +104,8 @@ parseListAccess = do
         spaces
         return $ ListAccess x y
 
+
+
 parseArith :: Parser HVal
 parseArith = do
         x  <-  try (parseListAccess) <|> try (parseLength) <|> try (parseList) <|> try (parseInteger) <|> try (parseBool) <|> try (parseString) <|> try (char '(' *> parseArith <* char ')')
@@ -114,7 +116,7 @@ parseArith = do
         spaces
         return $ Arith x op y
      <|>
-        do
+        do -- This parses expressions such as max and min and any future expressions of the same behaviour.
            op <- try (string "min.") <|> try (string "max.")
            x  <- try (parseInteger)
            _  <- string "."
@@ -122,7 +124,7 @@ parseArith = do
            spaces
            if op == "min." then return $ Arith x Min y else return $ Arith x Max y 
 
-parseLength :: Parser HVal
+parseLength :: Parser HVal -- Parse array length
 parseLength = do
         string "len("
         x <- try (parseList) <|> try (parseString)
@@ -131,10 +133,11 @@ parseLength = do
         return $ Length x
 
 
-parseVals :: Parser HVal
+parseVals :: Parser HVal -- General parser for HVals
 parseVals = try (parseListAccess) <|> try (parseLength) <|> try (parseAssign) <|> try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString) <|> try (parseInteger)
 
 p = try (parseAssign) <|> try (parseArith)
+
 ---------- Statement Parsers ----------
 
 parseAssign :: Parser HVal
@@ -148,7 +151,7 @@ parseAssign = do
         return $ Assign var val
 
 
-parseEvalHVal :: Parser HStatement
+parseEvalHVal :: Parser HStatement -- Parser that bridges gap between HVals and HStatements for HStatement operations
 parseEvalHVal = do
         x <- try p
         spaces
@@ -176,26 +179,13 @@ parseDo = do
      q <- many1 $ spaces *> parseStatements
      _ <- string "Od"
      return $ Do p q
-   --_ <- try (string "Do")
-   --spaces
-   --_ <- try (string "(")
-   --cond  <- try (spaces *> parseVals)
-   --_ <- try (string ")->") *> spaces
-   --expr  <- many1 $ try (parseSelection <* spaces) <|> (parseEvalHVal) --try (spaces *> many1 parseEvalHVal)
-   --_ <- try (string "Od")
-   --return $ Do cond expr
-
 
 parseSkip :: Parser HStatement
 parseSkip = do
         skip <- try (spaces *> string "skip" <* spaces)
         return $ Skip skip
 
-
-parseVal = string "<" *> spaces *> parseStatements <* spaces <* string ">"
-
-
-parseIf :: Parser HStatement
+parseIf :: Parser HStatement -- Selection is made up of sub statemens that will be denoted by if for now but it is not analogous to IF
 parseIf = do
         string "("
         cond  <- parseArith
@@ -205,6 +195,7 @@ parseIf = do
         spaces
         return $ If (cond, expr) 
 
+--- Testing to incoporate Selection and If parsing together
 parseS :: Parser [HStatement]
 parseS = many (do
         spaces
@@ -224,6 +215,7 @@ parseSelection = do
         spaces
         return $ Selection if_ selection fi_ (length selection)
 
+--- General statement parser
 parseStatements :: Parser HStatement
 parseStatements = try (parseHFunction) <|> try (parsePrint) <|> try (parseEvalHVal) <|> try (parseDo) <|> try (parseSelection) 
 

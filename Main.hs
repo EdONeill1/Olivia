@@ -10,10 +10,11 @@ import Data.List
 import Control.Concurrent.Async
 import Data.Traversable
 
+
 readStatement :: String -> IO [HStatement]
 readStatement input = do
         program <- readFile input
-        case parse parseProgram "Oli" program of
+        case parse parseProgram "Olivia" program of
           Left err -> fail $ show err
           Right parsed -> return $ parsed
 
@@ -24,27 +25,19 @@ evalString env expr = do
 --        putStrLn $ show x
         concat <$> traverse (runIOThrows . liftM show . evalStatement_ env) x
 
+
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr = do
         evalString env expr
         return ()
                           
-
 run :: String -> IO ()
 run expr = nullEnv >>= flip evalAndPrint expr
 
 main :: IO ()
 main = do
-        args   <- getArgs
+        args <- getArgs
         run $ args !! 0
-
-parseFile :: String -> IO [HStatement]
-parseFile file = do 
-        program <- readFile file
-        case parse parseProgram "Oli" program of 
-          Left  err    -> fail (show err)
-          Right parsed -> return $ parsed
 
 parseProgram :: Parser [HStatement]
 parseProgram = spaces *> many (parseStatements <* spaces)
-
