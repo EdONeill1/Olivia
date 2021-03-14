@@ -1,0 +1,3 @@
+* fixed git issues
+* moved project to cabal 
+* only thing to check is skip implementation
