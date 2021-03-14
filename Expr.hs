@@ -105,7 +105,7 @@ evalArithmetic env (ListAccess (HList xs) (HInteger y)) Div (HInteger z) = do
 evalVal :: Env -> HVal -> IOThrowsError HVal
 evalVal env val @(HInteger _)      = return $ val
 evalVal env val @(HBool    _)      = return $ val
-evalVal env val @(HString  _)      = return $ val
+evalVal env (HString  var)         = getVar env var >>= \list -> evalVal env list
 evalVal env val @(HList    _)      = return $ val
 evalVal env (Length (HList val))   = return $ HInteger $ sum [ 1 | _ <- val]
 evalVal env (Length (HString val)) = getVar env val >>= \list -> evalVal env (Length list) 

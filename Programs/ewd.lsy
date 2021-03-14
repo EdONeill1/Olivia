@@ -1,0 +1,25 @@
+
+
+
+f := [1 2 3 4 5 6 7 8 9 10]
+n := 0
+N := len(f)
+
+r := 0
+
+Do (n < N)->
+
+        a := f.n
+        a := a % 2
+        b := f.n
+        b := b div 2
+
+        if (a = 0)-> r := r + f.n
+           (b > 3)-> r := r + f.n
+           (a = 1)-> r := r + 0
+        fi
+
+        n := n + 1
+Od
+
+print(r)
