@@ -7,7 +7,6 @@ import System.Environment
 import Text.ParserCombinators.Parsec
 import Control.Monad
 import Data.List
-import Control.Concurrent.Async
 import Data.Traversable
 
 
@@ -19,20 +18,19 @@ readStatement input = do
           Right parsed -> return $ parsed
 
 
-evalString :: Env -> String -> IO String
-evalString env expr = do
+evalFile :: Env -> String -> IO String
+evalFile env expr = do
         x <- readStatement expr
---        putStrLn $ show x
         concat <$> traverse (runIOThrows . liftM show . evalStatement_ env) x
 
 
-evalAndPrint :: Env -> String -> IO ()
-evalAndPrint env expr = do
-        evalString env expr
+evalExpr :: Env -> String -> IO ()
+evalExpr env expr = do
+        evalFile env expr
         return ()
                           
 run :: String -> IO ()
-run expr = nullEnv >>= flip evalAndPrint expr
+run expr = nullEnv >>= flip evalExpr expr
 
 main :: IO ()
 main = do

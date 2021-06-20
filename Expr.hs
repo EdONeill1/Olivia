@@ -22,28 +22,31 @@ import Text.ParserCombinators.Parsec.Char hiding (spaces)
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import Text.Parsec.Char
-import Control.Concurrent.Async
 
 instance Show HVal where show = showVal
 instance Show HStatement where show = showStatement
 
-showVal :: HVal -> String
+showVal :: HVal -> [Char]
 showVal (HInteger val)      = show val ++ " "
 showVal (HBool   True)      = "True "
 showVal (HBool  False)      = "False "
 showVal (HString  val)      = val ++ " "
+showVal (HValString val)    = show val
 showVal (HList    val)      = show val
 showVal (Arith x op y)      = show x ++ " " ++ show op ++ " " ++ show y ++ " "
 showVal (Assign var val)    = show var ++ " := " ++ show val ++ " "
 showVal (Length   val)      = "length." ++ show val
+showVal (Cons list1 list2)  = show list1 ++ show list2
+showVal (Car (HList (x:xs)))= show x
+showVal (Cdr (HList (x:xs)))= show xs
 
-
-showStatement :: HStatement -> String
+showStatement :: HStatement -> [Char]
 showStatement (Eval val)     = showVal val
 showStatement (Print val)    = "\nPrint (" ++ showVal val ++ ")\n"
 showStatement (Do cond expr) = "\nDo (" ++ show cond ++ ")->\n" ++ show expr ++"\nOd"
 showStatement (If (cond, expr)) = unlines $ map (showStatement) expr
 showStatement (Selection if_ selection fi_ n) = unlines $ map (showStatement) selection
+showStatement (Ifs if_ ifs fi_ n) = unlines $ map (showStatement) ifs
 
 evalArithmetic :: Env -> HVal -> Op -> HVal -> IOThrowsError HVal
 evalArithmetic env (HInteger x) Add  (HInteger y)        = return $ HInteger (x + y)
@@ -51,17 +54,19 @@ evalArithmetic env (HInteger x) Sub  (HInteger y)        = return $ HInteger (x 
 evalArithmetic env (HInteger x) Mult (HInteger y)        = return $ HInteger (x * y)
 evalArithmetic env (HInteger x) Div  (HInteger y)        = return $ HInteger (x `div` y)
 evalArithmetic env (HInteger x) Mod  (HInteger y)        = return $ HInteger (x `mod` y)
-evalArithmetic env (HInteger x) Max  (HInteger y)        = if x > y then return $ (HInteger x) else return $ (HInteger y)
-evalArithmetic env (HInteger x) Min  (HInteger y)        = if x < y then return $ (HInteger x) else return $ (HInteger y)
 evalArithmetic env (HInteger x) Less (HInteger y)        = if x < y then return $ (HBool True) else return $ (HBool False)
 evalArithmetic env (HInteger x) Greater (HInteger y)     = if x > y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) Leq  (HInteger y)        = if x <= y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) Geq  (HInteger y)        = if x >= y then return $ (HBool True) else return $ (HBool False)
+evalArithmetic env (HInteger x) Up (HInteger y)          = if x > y then return $ (HInteger x) else return $ (HInteger y)
+evalArithmetic env (HInteger x) Down (HInteger y)        = if x < y then return $ (HInteger x) else return $ (HInteger y)
 evalArithmetic env (HInteger x)  op  (Arith x' op' y')   = evalArithmetic env x' op' y' >>= \y -> evalArithmetic env (HInteger x) op y
 evalArithmetic env (HInteger x)  op  (HBool True)        = return $ HBool True
 evalArithmetic env (HBool True)  op  (HInteger x)        = return $ HBool True
 evalArithmetic env (HInteger x)  op  (HBool False)       = return $ HBool False
 evalArithmetic env (HBool False) op  (HInteger x)        = return $ HBool False
 evalArithmetic env (HInteger x)  op  (HList y)           = return $ HInteger 5
-evalArithmetic env (HList x)     Dot  (HInteger y)        = return $ x !! fromIntegral(y)
+evalArithmetic env (HList x)     Dot  (HInteger y)       = return $ x !! fromIntegral(y)
 
 ----- Boolean Arithmetic -----
 evalArithmetic env (HBool True)  And (HBool True)         = return $ HBool True
@@ -81,9 +86,11 @@ evalArithmetic env (HBool    x) op   (Arith x' op' y')    = evalArithmetic env x
 evalArithmetic env (HInteger x) Equals  (HInteger y)      = if (HInteger x) == (HInteger y) then return $ (HBool True) else return $ (HBool False)
 evalArithmetic env (HString  x) Equals  (HInteger y)      = getVar env x >>= \var -> if var == (HInteger y) then return $ (HBool True) else return $ (HBool False)
 evalArithmetic env (HInteger x) Equals  (HString  y)      = getVar env y >>= \var -> if (HInteger x) == var then return $ (HBool True) else return $ (HBool False)
-evalArithmetic env (HInteger x) NEquals (HInteger y)      = return $ HBool (x == y)
-evalArithmetic env (HString  x) NEquals (HInteger y)      = getVar env x >>= \var -> return $ HBool (var == (HInteger y))
-evalArithmetic env (HInteger x) NEquals (HString  y)      = getVar env y >>= \var -> return $ HBool ((HInteger x) == var)
+evalArithmetic env (HInteger x) NEquals (HInteger y)      = return $ HBool (x /= y)
+evalArithmetic env (HString  x) NEquals (HInteger y)      = getVar env x >>= \var -> return $ HBool (var /= (HInteger y))
+evalArithmetic env (HInteger x) NEquals (HString  y)      = getVar env y >>= \var -> return $ HBool ((HInteger x) /= var)
+
+evalArithmetic env ((ListAccess (HList xs) (HInteger x))) op (HInteger y) = evalVal env ((ListAccess (HList xs) (HInteger x))) >>= \x' -> evalArithmetic env x' op (HInteger y) 
 ----- Variable Arithemtic -----
 evalArithmetic env (HString  x)  op   (HInteger y) = getVar env x >>= (\a -> evalArithmetic env a op (HInteger y)) 
 evalArithmetic env (HInteger x)  op   (HString  y) = getVar env y >>= (\a -> evalArithmetic env (HInteger x) op a)
@@ -100,15 +107,27 @@ evalArithmetic env (HInteger x) op    (Length   (HString y)) = evalVal env (Leng
 --evalArithmetic env (Arith (HList xs) Dot (HInteger ys)) op (HInteger y) = evalArithmetic env (HList xs) Dot (HInteger ys) >>= \i -> evalArithmetic env i op (HInteger y) 
 
 evalVal :: Env -> HVal -> IOThrowsError HVal
-evalVal env val @(HInteger _)      = return $ val
-evalVal env val @(HBool    _)      = return $ val
-evalVal env (HString  var)         = getVar env var >>= \list -> evalVal env list
-evalVal env val @(HList    _)      = return $ val
+evalVal env val@(HInteger _)      = return $ val
+evalVal env val@(HBool    _)      = return $ val
+evalVal env (HString  var)         = getVar env var >>= \val -> evalVal env val
+evalVal env val@(HValString _)     = return $ val
+evalVal env val@(HList    _)      = return $ val
 evalVal env (Length (HList val))   = return $ HInteger $ sum [ 1 | _ <- val]
 evalVal env (Length (HString val)) = getVar env val >>= \list -> evalVal env (Length list) 
 evalVal env (Arith x op y)         = evalArithmetic env x op y
 evalVal env (Assign var val)       = evalVal env val >>= defineVar env var
-evalVal env (ListAccess (HList xs) (HInteger y)) = return $ xs !! fromIntegral(y)
+
+----- List Evaluations : Index Accessing, Cons, Car, Cdr and their variations -----
+evalVal env (ListAccess (HList xs) (HInteger y))   = return $ xs !! fromIntegral(y)
+evalVal env (Cons (HList list1) (HList list2))     = return $ HList $ list1 ++ list2
+evalVal env (Cons (HString list1) (HList list2))   = getVar env list1 >>= \list -> evalVal env (Cons list (HList list2))
+evalVal env (Cons (HList list1) (HString list2))   = getVar env list2 >>= \list -> evalVal env (Cons (HList list1) list)
+evalVal env (Cons (HString list1) (HString list2)) = getVar env list1 >>= \list -> evalVal env (Cons list (HString list2))
+evalVal env (Car  (HList (x:xs)))                  = return $ x
+evalVal env (Car  (HString list))                  = getVar env list >>= \list' -> evalVal env (Car list')
+evalVal env (Cdr  (HList (x:xs)))                  = return $ HList $ xs
+evalVal env (Cdr  (HString list))                  = getVar env list >>= \list' -> evalVal env (Cdr list')
+
 
 evalStatement_ :: Env -> HStatement -> IOThrowsError ()
 evalStatement_ env (Do cond expr) = evalVal env cond >>= \x -> case x of
@@ -119,7 +138,7 @@ evalStatement_ env (Do cond expr) = evalVal env cond >>= \x -> case x of
 
 evalStatement_ env (Skip skip) = return () 
 evalStatement_ env (Print (HString val)) = getVar env val >>= \x -> liftIO $ putStrLn $ show x
-evalStatement_ env (Print val) = evalVal env val >>= \x -> liftIO $ putStrLn $ show x
+evalStatement_ env (Print val) = evalVal env val >>= \x -> liftIO $ putStrLn $ unwords $ words $ show x
 evalStatement_ env (Eval val) = do
     result <- evalVal env val
     return ()
@@ -128,9 +147,14 @@ evalStatement_ env (If (cond, expr)) = evalVal env cond >>= \x -> case x of
                                                                      HBool True  -> do
                                                                              traverse_ (evalStatement_ env) expr
                                                                              return ()
-                                                                     
-evalStatement_ env (Selection if_ selection fi_ n) = evalS env (Selection if_ selection fi_ n) (selection !! randIdx n) -- Determinism: traverse_ (evalStatement_ env) selection
 
+evalStatement_ env (Ifs if_ ((If (cond, expr)) : ifs) fi_ n) = evalVal env cond >>= \x -> case x of
+                                                                                            HBool False -> evalStatement_ env (Ifs if_ ( head ifs : tail ifs) fi_ n)
+                                                                                            HBool True  -> traverse_ (evalStatement_ env) expr
+-- Non Dterminism                                                                     
+evalStatement_ env (Selection if_ selection fi_ n) = evalS env (Selection if_ selection fi_ n) (selection !! randIdx n) 
+-- Determinism: traverse_ (evalStatement_ env) selection
+-- THIS COMPOSES ALL IFS INTO A SINGLE COMPUTATION !! evalStatement_ env (Ifs if_ ifs fi_ n) = traverse_ (evalStatement_ env) ifs
 -- HELPER FUNCTION FOR SELECTION EVALUATION
 evalS env (Selection if_ selection fi_ n) (If (cond, expr)) = evalVal env cond >>= \x -> case x of
                                                            HBool False -> evalStatement_ env (Selection if_ selection fi_ n)
@@ -145,7 +169,7 @@ unravel list = unwords (map showVal list)
 
 --------------------------------------------------------------
         
-        -- ERROR HANDLING AND VARIABLE ASSIGNMENT WAS BASED ON AND INSPIRED BY THE WIKIBOOK WRITE YOURSELF A SCHEME IN 48 HOURS --
+        -- ERROR HANDLING AND VARIABLE ASSIGNMENT WAS BASED ON THE WIKIBOOK WRITE YOURSELF A SCHEME IN 48 HOURS in order to faciliate Assignment --
         -- https://upload.wikimedia.org/wikipedia/commons/a/aa/Write_Yourself_a_Scheme_in_48_Hours.pdf --
 
 -------------------------------------------------------------

@@ -1,0 +1,10 @@
+print("The Following Program Is A Demonstration Of Skip")
+
+x := 0
+
+Do (x != 10)->
+        select ((x % 2) = 0)-> print(x)
+               ((x % 2) = 1)-> skip
+        end
+        x := x + 1
+Od

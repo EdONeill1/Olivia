@@ -1,0 +1,21 @@
+print("The following program performs a Bounded Linear Search")
+print("to find if the integer five exists within the given array")
+print("and returns the index of which it is stored if it is there.")
+
+f := [0 1 2 3 4 5 6 7 8 9]
+n := 0
+N := len(f)
+X := 5
+
+a := f.n
+
+Do ((a != X) and (n != (N - 1)))->
+
+                a := f.n
+                n := n + 1
+
+Od
+
+select (a = X)-> print(n)
+       ((n = (N - 1)) and (a != X))-> print("Element not in list")
+end

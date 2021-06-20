@@ -1,0 +1,7 @@
+print("The Following Program Is A Demonstration Of Selection")
+
+x := 1
+
+select (x = 1)-> print("True")
+       (x != 1)-> print("False")
+end

@@ -1,0 +1,32 @@
+
+* The most current bug I can see occurs when one uses arrays and their elements. 
+
+        Consider a list f : f := [1]
+
+        If one wishes to perform arithmetic using this, it must be on the right hand side of an expresson such that :
+                - 5 + f.0 is valid
+                - f.0 + 5 is invalid
+
+        This behaviour persists to guards of Selection and Repetition. The best solution is to instantiate a running variable with the current value of the list and operator as normal. 
+
+
+* There was some problems in developing the parser regarding operators. Operators are defined in the following way:
+
+                        - up   = Up     --- 5 up 4 = 5, (3 + 1) up 2 = 4
+                        - down = Down   --- 5 down 4 = 4, (3 + 1) down 2 = 2
+                        - min  = Min    --- min.5.4 = 4
+                        - max  = Max    --- max 5.4 = 5
+                        - and  = And
+                        - or   = Or
+                        - +    = Addition
+                        - -   = Subtraction
+                        - *    = Multiplication
+                        - /    = Division
+                        - %    = Modulo
+                        - <    = Less Than
+                        - >    = Greater Than
+                        - leq  = Less Than Or Equal To
+                        - geq  = Greater Than Or Equal To
+                        - .    = Dot    --- For list accessing, f.0 returns the first element of f for example.
+                        - =    = Equal To
+                        - !=   = Not Equal To

@@ -1,0 +1,14 @@
+
+print("The Following Program Prints The 10th Fibonacci Number")
+
+n := 10
+a := 1
+b := 0
+
+Do (n != 0)->
+        n := n - 1
+        b := a + b
+        a := b - a
+Od
+
+print(b)

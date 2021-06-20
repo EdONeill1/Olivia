@@ -1,0 +1,10 @@
+print("The Following Program Is A Demonstration Of Repetition")
+
+x := 0
+
+Do (x != 5)->
+        print("In Repetition Block")
+Od
+
+print("Out Of Repetition Block")
+

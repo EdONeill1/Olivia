@@ -1,0 +1,18 @@
+print("The Following Programs Calculates The")
+print("Number Of Even Values Between One And Ten")
+print("With The Use Of Skip")
+
+n := 0
+x := 0
+
+Do (n != 10)->
+        
+
+        select ((n % 2) = 0)-> x := x + 1
+               ((n % 2) = 1)-> skip
+        end
+        
+        n := n + 1
+Od
+
+print(x)

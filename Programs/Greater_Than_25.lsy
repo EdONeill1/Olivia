@@ -1,0 +1,20 @@
+
+print("The following program calculates the number of integers in a list that are greater than twenty five.")
+f := [1 2 56 78 100 45 31 32 49 67]
+x := 0
+n := 0
+N := len(f)
+
+Do (n < 10)->
+      
+        fn := f.n
+        if (fn > 25)-> x := x + 1
+           (fn < 25)-> x := x + 0
+           (fn = 25)-> x := x + 0
+        fi
+
+        n := n + 1
+
+Od
+
+print(x)

@@ -15,11 +15,15 @@ data HVal
   = HInteger Integer
   | HBool    Bool
   | HString  String
+  | HValString String
   | HList    [HVal]
   | Length   HVal
   | Arith    HVal Op HVal
   | Assign   String HVal
   | ListAccess HVal HVal
+  | Cons     HVal   HVal
+  | Car      HVal
+  | Cdr      HVal
     deriving (Eq, Read)
 
 
@@ -29,12 +33,13 @@ data HStatement
   |  Do     HVal [HStatement]
   |  If     (HVal, [HStatement]) 
   |  Selection String [HStatement] String Int
+  |  Ifs  String [HStatement] String Int
   |  S [(HVal, [HStatement])]
   |  Skip   String
   |  HFunction String HVal HStatement
     deriving (Eq, Read)
 
-data Op = Add | Sub | Mult | Div | Mod | And | Or | Min | Max | Less | Greater | Dot | Equals | NEquals deriving (Show, Eq, Read)
+data Op = Add | Sub | Mult | Div | Mod | And | Or | Less | Greater | Leq | Geq | Dot | Equals | NEquals | Up | Down deriving (Show, Eq, Read)
 
 ---------- HFunction Parser ----------
 -- A function is denoted by it's name, a list of params, and then a list of HStatements which operate upon the params
@@ -70,25 +75,29 @@ parseBool = classifyBool <$> (string "True" <|> string "False")
 parseString :: Parser HVal
 parseString = many1 (letter) >>= (return . HString)
 
+parseValString :: Parser HVal
+parseValString = liftM HValString $ (char '"' *> many (noneOf "\"")  <* char '"')
 
 parseList :: Parser HVal
 parseList = liftM HList $ (char '[' *> sepBy parseVals spaces <* char ']')
 
 
 parseOp :: Parser Op
-parseOp = classifyOps <$> ( (string "min") <|> (string "max") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "div") <|> (string "%") <|> (string "<") <|> (string ">") <|> (string ".") <|> (string "=") <|> (string "!="))
+parseOp = classifyOps <$> ( (string "up") <|> (string "down") <|> (string "and") <|> (string "or") <|> (string "+") <|> (string "-") <|> (string "*") <|> (string "/") <|> (string "%") <|> (string "<") <|> (string ">") <|> (string "leq") <|>  (string "geq") <|> (string ".") <|> (string "=") <|> (string "!="))
   where
-    classifyOps "min" = Min
-    classifyOps "max" = Max
+    classifyOps "up"   = Up
+    classifyOps "down" = Down
     classifyOps "and" = And
     classifyOps "or"  = Or
     classifyOps "+"   = Add
     classifyOps "-"   = Sub
     classifyOps "*"   = Mult
-    classifyOps "div" = Div
+    classifyOps "/" = Div
     classifyOps "%" = Mod
     classifyOps "<"   = Less
     classifyOps ">"   = Greater
+    classifyOps "leq"  = Leq
+    classifyOps "geq"  = Geq
     classifyOps "."   = Dot
     classifyOps "="   = Equals
     classifyOps "!="  = NEquals
@@ -115,14 +124,6 @@ parseArith = do
         y  <- try (parseArith) <|> try (parseLength) <|> try (parseList) <|> try (parseInteger) <|> try (parseBool) <|> try (parseString) <|> try (char '(' *> parseArith <* char ')') 
         spaces
         return $ Arith x op y
-     <|>
-        do -- This parses expressions such as max and min and any future expressions of the same behaviour.
-           op <- try (string "min.") <|> try (string "max.")
-           x  <- try (parseInteger)
-           _  <- string "."
-           y  <- try (parseInteger) <|> try (char '(' *> parseArith <* char ')') 
-           spaces
-           if op == "min." then return $ Arith x Min y else return $ Arith x Max y 
 
 parseLength :: Parser HVal -- Parse array length
 parseLength = do
@@ -132,9 +133,34 @@ parseLength = do
         spaces
         return $ Length x
 
+parseCons :: Parser HVal
+parseCons = do
+        string "cons"
+        spaces
+        list1 <- try (parseList) <|> try (parseString)
+        spaces
+        list2 <- try (parseList) <|> try (parseString)
+        spaces
+        return $ Cons list1 list2
 
+parseCdr :: Parser HVal
+parseCdr = do
+        func <- try (string "cdr")
+        spaces
+        list <- try (parseList) <|> try (parseString)
+        spaces
+        return $ Cdr list
+
+parseCar :: Parser HVal
+parseCar = do
+        func <- try (string "car")
+        spaces
+        list <- try (parseList) <|> try (parseString)
+        spaces
+        return $ Car list 
+    
 parseVals :: Parser HVal -- General parser for HVals
-parseVals = try (parseListAccess) <|> try (parseLength) <|> try (parseAssign) <|> try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString) <|> try (parseInteger)
+parseVals = try (parseValString) <|> try (parseCons) <|> try (parseCar) <|> try (parseCdr) <|> try (parseListAccess) <|> try (parseLength) <|> try (parseAssign) <|> try (parseArith) <|> try (parseList) <|> try (parseBool) <|> try (parseString) <|> try (parseInteger) 
 
 p = try (parseAssign) <|> try (parseArith)
 
@@ -173,7 +199,7 @@ parseDo = do
      _ <- string "Do"
      spaces
      _ <- string "("
-     p <- parseArith
+     p <- try (parseArith) <|> try (parseBool)
      _ <- string ")->"
      spaces
      q <- many1 $ spaces *> parseStatements
@@ -185,7 +211,7 @@ parseSkip = do
         skip <- try (spaces *> string "skip" <* spaces)
         return $ Skip skip
 
-parseIf :: Parser HStatement -- Selection is made up of sub statemens that will be denoted by if for now but it is not analogous to IF
+parseIf :: Parser HStatement 
 parseIf = do
         string "("
         cond  <- parseArith
@@ -207,17 +233,27 @@ parseS = many (do
 
 parseSelection :: Parser HStatement
 parseSelection = do
-        if_ <- string "if"
+        if_ <- string "select"
         spaces
         selection <- many1 $ parseIf
         spaces
-        fi_ <- string "fi"
+        fi_ <- string "end"
         spaces
         return $ Selection if_ selection fi_ (length selection)
 
+parseIfs :: Parser HStatement
+parseIfs = do
+        if_ <- string "if"
+        spaces
+        ifs <- many1 $ parseIf
+        spaces
+        fi_ <- string "fi"
+        spaces
+        return $ Ifs if_ ifs fi_ (length ifs)
+
 --- General statement parser
 parseStatements :: Parser HStatement
-parseStatements = try (parseHFunction) <|> try (parsePrint) <|> try (parseEvalHVal) <|> try (parseDo) <|> try (parseSelection) 
+parseStatements = try (parseHFunction) <|> try (parsePrint) <|> try (parseEvalHVal) <|> try (parseDo) <|> try (parseSelection) <|> try (parseIfs) <|> try (parseSkip)
 
 
 

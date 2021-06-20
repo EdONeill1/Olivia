@@ -1,0 +1,19 @@
+print("The following program calculates the longest all zero segement.")
+f := [1 2 3 0 0 0]
+N := len(f)
+n := 0
+r := 0
+d := 0
+
+Do (n != N)->
+           a := f.n
+           select (a = 0)->  n := n + 1
+                             r := r up (1 + d)
+                             d := d + 1
+                  (a != 0)-> n := n + 1
+                             r := r
+                             d := 0
+           end
+Od
+
+print(r)

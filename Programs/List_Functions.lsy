@@ -1,0 +1,21 @@
+
+print("The Following Programs Displays Cons, Cdr, Car functionality")
+x := [1 2 3 4]
+
+y := [5 6]
+
+print("Cons the following arrays")
+print(x)
+print(y)
+
+z := cons x y
+print(z)
+
+print("Cdr and Car respectively")
+i := cdr z
+j := car z
+
+print(i)
+print(j)
+
+

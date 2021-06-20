@@ -1,0 +1,20 @@
+print("The following program finds the sum of even integers between integers one and ten")
+print("This program uses skip to continue the program when an integer is odd.")
+
+f := [1 2 3 4 5 6 7 8 9 10]
+n := 0
+N := len(f)
+
+sum := 0
+
+Do (n != N)->
+
+        index := f.n
+        select ((index % 2) = 0)-> sum := sum + index
+               ((index % 2) = 1)-> skip 
+        end
+
+        n := n + 1
+Od
+
+print(sum)

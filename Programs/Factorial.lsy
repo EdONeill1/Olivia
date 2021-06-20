@@ -1,0 +1,13 @@
+print("The following program is a Reduction which finds the factorial of the integer ten.")
+
+n := 1
+N := 10
+r := 1
+
+Do (n != N)->
+        n := n + 1
+        r := r * n
+
+Od
+
+print(r)

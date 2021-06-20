@@ -1,0 +1,4 @@
+print("The Following Program Is A Demonstration Of Assignment")
+
+x := 1
+print(x)

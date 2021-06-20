@@ -1,0 +1,25 @@
+
+print("The following program is an attempt to showcase the differences between the non-determinism implementation and the determinism implementation because they are not the same!")
+
+print("To do this, find the modulo of the integer two will be performed. If it's zero, x is set to zero otherwise one")
+
+x := 2
+
+if ((x % 2) = 0)-> x := 0
+   ((x % 2) = 1)-> x := 1
+fi
+
+print(x)
+
+print("The correct answer is returned but this is different to the non-deterministic implementationi.")
+
+print("The non-deterministic implementation generates a random index and if its guard is true, it evaluates that index.")
+
+
+x := 2
+
+select ((x % 2) = 0)-> x := 0
+       ((x % 2) = 1)-> x := 1
+end
+
+print(x)

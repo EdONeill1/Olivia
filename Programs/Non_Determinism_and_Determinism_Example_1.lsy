@@ -1,0 +1,42 @@
+print("The following program shows the difference between")
+print("Nondeterminism and Determinism in such a way that the ")
+print("Nondeterministic output is always different whereas the deterministic output")
+print("always remains the same.")
+
+print("Nondeterministic Output.")
+
+x := 1
+y := 1
+n := 10
+
+Do (x != n)->
+        
+        select ((x % 2) leq (y % 2))-> x := x + 1
+               ((x % 2) geq (y % 2))-> y := x
+                                       x := x + 1
+        end
+Od
+
+
+print(x)
+print(y)
+
+
+print("Deterministic Output")
+
+x := 1
+y := 1
+n := 10
+
+Do (x != n)->
+
+        if ((x % 2) leq (y % 2))-> x := x + 1
+           ((x % 2) geq (y % 2))-> y := x
+                                   x := x + 1
+        fi
+Od
+
+print(x)
+print(y)
+
+

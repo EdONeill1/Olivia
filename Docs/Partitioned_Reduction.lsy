@@ -1,0 +1,19 @@
+print("The following program finds the sum of even integers between integers one and ten")
+
+f := [1 2 3 4 5 6 7 8 9 10]
+n := 0
+N := len(f)
+
+sum := 0
+
+Do (n != N)->
+       
+        index := f.n
+        select ((index % 2) = 0)-> sum := sum + index
+                                   n := n + 1
+               ((index % 2) = 1)-> sum := sum + 0
+                                   n := n + 1
+        end
+Od
+
+print(sum)
