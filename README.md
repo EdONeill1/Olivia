@@ -3,9 +3,7 @@
 
 ## Installation
 First clone the repoistory.
-```
-git clone https://csgitlab.ucd.ie/EdONeill/Olivia.git && cd Olivia
-```
+
 To install Haskell and Cabal, copy-paste the commands below according to your OS
 
 ### Windows
